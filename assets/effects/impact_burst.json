@@ -1,0 +1,18 @@
+{
+  "id": "impact_burst",
+  "name": "Impact Burst",
+  "category": "FX",
+  "duration": 0.4,
+  "loop": false,
+  "particle_type": "explosion",
+  "color": "0xFFFFFFFF",
+  "intensity": 1.0,
+  "spread": 360,
+  "speed": 8.0,
+  "keyframes": [
+    {"time": 0.0, "intensity": 1.0, "scale": 0.5},
+    {"time": 0.15, "intensity": 0.8, "scale": 1.2},
+    {"time": 0.3, "intensity": 0.3, "scale": 1.5},
+    {"time": 0.4, "intensity": 0.0, "scale": 1.0}
+  ]
+}

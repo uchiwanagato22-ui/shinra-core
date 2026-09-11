@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "total": 5,
+  "expressions": [
+    {
+      "id": "happy",
+      "name": "Happy",
+      "file": "happy.json"
+    },
+    {
+      "id": "sad",
+      "name": "Sad",
+      "file": "sad.json"
+    },
+    {
+      "id": "angry",
+      "name": "Angry",
+      "file": "angry.json"
+    },
+    {
+      "id": "surprised",
+      "name": "Surprised",
+      "file": "surprised.json"
+    },
+    {
+      "id": "neutral",
+      "name": "Neutral",
+      "file": "neutral.json"
+    }
+  ]
+}

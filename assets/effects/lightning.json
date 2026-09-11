@@ -1,0 +1,18 @@
+{
+  "id": "lightning",
+  "name": "Lightning Strike",
+  "category": "FX",
+  "duration": 0.3,
+  "loop": false,
+  "particle_type": "lightning",
+  "color": "0xFFFFFF00",
+  "intensity": 1.0,
+  "spread": 30,
+  "speed": 10.0,
+  "keyframes": [
+    {"time": 0.0, "intensity": 0.5, "scale": 0.5},
+    {"time": 0.1, "intensity": 1.0, "scale": 1.2},
+    {"time": 0.2, "intensity": 0.7, "scale": 1.0},
+    {"time": 0.3, "intensity": 0.0, "scale": 0.0}
+  ]
+}

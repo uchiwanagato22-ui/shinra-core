@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'models/rig.dart';
 import 'services/ai_director.dart';
+import 'services/audio_cue_service.dart';
+import 'services/gif_export.dart';
 import 'services/project_store.dart';
 import 'widgets/draw_canvas.dart';
 import 'widgets/viewport.dart';
@@ -21,10 +23,24 @@ enum Page { home, studio, character, library, rig, animate, face, fx, camera, au
 class Shell extends StatefulWidget { const Shell({super.key}); @override State<Shell> createState() => _ShellState(); }
 class _ShellState extends State<Shell> {
   Page page = Page.home; Timer? timer;
-  @override void dispose() { timer?.cancel(); super.dispose(); }
-  void togglePlay(ProjectState p) { if (p.playing) { timer?.cancel(); p.playing = false; p.status = 'Paused'; p.notifyListeners(); return; } p.playing = true; p.status = 'Playing'; p.notifyListeners(); timer?.cancel(); timer = Timer.periodic(const Duration(milliseconds: 33), (_) { if (!mounted) return; final next = p.playhead + 1 / 30; if (next >= p.selectedAnimation.duration && !p.selectedAnimation.loop) { p.playing = false; timer?.cancel(); p.setPlayhead(p.selectedAnimation.duration); } else { p.loadAt(next); } }); }
-  @override Widget build(BuildContext context) => Consumer<ProjectState>(builder: (_, p, __) => Scaffold(body: Row(children: [NavigationRail(selectedIndex: page.index, onDestinationSelected: (i) => setState(() => page = Page.values[i]), labelType: NavigationRailLabelType.all, destinations: const [NavigationRailDestination(icon: Icon(Icons.home_outlined), label: Text('Home')), NavigationRailDestination(icon: Icon(Icons.movie_outlined), label: Text('Studio')), NavigationRailDestination(icon: Icon(Icons.person_outline), label: Text('Character')), NavigationRailDestination(icon: Icon(Icons.video_library_outlined), label: Text('Library')), NavigationRailDestination(icon: Icon(Icons.account_tree_outlined), label: Text('Rig')), NavigationRailDestination(icon: Icon(Icons.timeline_outlined), label: Text('Animate')), NavigationRailDestination(icon: Icon(Icons.face_outlined), label: Text('Face')), NavigationRailDestination(icon: Icon(Icons.auto_awesome_outlined), label: Text('FX')), NavigationRailDestination(icon: Icon(Icons.videocam_outlined), label: Text('Camera')), NavigationRailDestination(icon: Icon(Icons.audiotrack_outlined), label: Text('Audio')), NavigationRailDestination(icon: Icon(Icons.smart_toy_outlined), label: Text('AI Director')), NavigationRailDestination(icon: Icon(Icons.file_upload_outlined), label: Text('Export'))]), Expanded(child: _page(p)),])));
-  Widget _page(ProjectState p) { switch (page) { case Page.home: return HomePage(onOpen: (x) => setState(() => page = x)); case Page.studio: return StudioPage(p: p, onPlay: () => togglePlay(p)); case Page.character: return CharacterPage(p: p); case Page.library: return LibraryPage(p: p, onUse: () => setState(() => page = Page.animate)); case Page.rig: return RigPage(p: p); case Page.animate: return AnimatePage(p: p, onPlay: () => togglePlay(p)); case Page.face: return FacePage(p: p); case Page.fx: return FxPage(p: p); case Page.camera: return CameraPage(p: p); case Page.audio: return AudioPage(p: p); case Page.ai: return AiPage(p: p); case Page.export: return ExportPage(p: p); } }
+  final audioCues = AudioCueService();
+  @override void dispose() { timer?.cancel(); audioCues.dispose(); super.dispose(); }
+  void togglePlay(ProjectState p) { if (p.playing) { timer?.cancel(); p.playing = false; p.status = 'Paused'; p.notifyListeners(); return; } p.playing = true; p.status = 'Playing'; p.notifyListeners(); timer?.cancel(); timer = Timer.periodic(const Duration(milliseconds: 33), (_) { if (!mounted) return; final next = p.playhead + 1 / 30; if (next >= p.selectedAnimation.duration && !p.selectedAnimation.loop) { if (p.advanceQueue()) return; p.playing = false; timer?.cancel(); p.setPlayhead(p.selectedAnimation.duration); } else { p.loadAt(next); } }); }
+  void playQueue(ProjectState p, List<String> clipIds) { p.startQueue(clipIds); togglePlay(p); }
+  @override Widget build(BuildContext context) => Consumer<ProjectState>(builder: (ctx, p, __) {
+        p.onAudioCue ??= (name) {
+          audioCues.play(name);
+          ScaffoldMessenger.of(ctx).hideCurrentSnackBar();
+          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+            duration: const Duration(milliseconds: 900),
+            behavior: SnackBarBehavior.floating,
+            width: 260,
+            content: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.volume_up, size: 18), const SizedBox(width: 8), Text(name)]),
+          ));
+        };
+        return Scaffold(body: Row(children: [NavigationRail(selectedIndex: page.index, onDestinationSelected: (i) => setState(() => page = Page.values[i]), labelType: NavigationRailLabelType.all, destinations: const [NavigationRailDestination(icon: Icon(Icons.home_outlined), label: Text('Home')), NavigationRailDestination(icon: Icon(Icons.movie_outlined), label: Text('Studio')), NavigationRailDestination(icon: Icon(Icons.person_outline), label: Text('Character')), NavigationRailDestination(icon: Icon(Icons.video_library_outlined), label: Text('Library')), NavigationRailDestination(icon: Icon(Icons.account_tree_outlined), label: Text('Rig')), NavigationRailDestination(icon: Icon(Icons.timeline_outlined), label: Text('Animate')), NavigationRailDestination(icon: Icon(Icons.face_outlined), label: Text('Face')), NavigationRailDestination(icon: Icon(Icons.auto_awesome_outlined), label: Text('FX')), NavigationRailDestination(icon: Icon(Icons.videocam_outlined), label: Text('Camera')), NavigationRailDestination(icon: Icon(Icons.audiotrack_outlined), label: Text('Audio')), NavigationRailDestination(icon: Icon(Icons.smart_toy_outlined), label: Text('AI Director')), NavigationRailDestination(icon: Icon(Icons.file_upload_outlined), label: Text('Export'))]), Expanded(child: _page(p))]));
+      });
+  Widget _page(ProjectState p) { switch (page) { case Page.home: return HomePage(onOpen: (x) => setState(() => page = x)); case Page.studio: return StudioPage(p: p, onPlay: () => togglePlay(p)); case Page.character: return CharacterPage(p: p); case Page.library: return LibraryPage(p: p, onUse: () => setState(() => page = Page.animate)); case Page.rig: return RigPage(p: p); case Page.animate: return AnimatePage(p: p, onPlay: () => togglePlay(p)); case Page.face: return FacePage(p: p); case Page.fx: return FxPage(p: p); case Page.camera: return CameraPage(p: p); case Page.audio: return AudioPage(p: p); case Page.ai: return AiPage(p: p, onPlaySequence: (ids) => playQueue(p, ids)); case Page.export: return ExportPage(p: p); } }
 }
 
 class Top extends StatelessWidget { const Top({super.key, required this.title, this.subtitle}); final String title; final String? subtitle; @override Widget build(BuildContext c) => Padding(padding: const EdgeInsets.fromLTRB(24, 20, 24, 14), child: Row(children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: Theme.of(c).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)), if (subtitle != null) Text(subtitle!, style: TextStyle(color: Colors.white.withOpacity(.55))) ]), const Spacer(), const Text('SHINRA CORE', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.5, color: Color(0xFFFF8A00))) ])); }
@@ -117,11 +133,31 @@ class _CharacterPageState extends State<CharacterPage> {
                 _swatchRow('Skin', skinPalette, p.skinColor, (v) => p.setAppearance(skin: v)),
                 _swatchRow('Hair color', hairPalette, p.hairColor, (v) => p.setAppearance(hair: v)),
                 _swatchRow('Eyes', eyePalette, p.eyeColor, (v) => p.setAppearance(eyes: v)),
+                const Text('Eye shape', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                Wrap(spacing: 8, runSpacing: 8, children: [for (final s in eyeShapes) ChoiceChip(label: Text(s), selected: p.eyeShape == s, onSelected: (_) => p.setAppearance(eyeShape: s))]),
+                const SizedBox(height: 10),
                 _swatchRow('Clothes', clothesPalette, p.clothesColor, (v) => p.setAppearance(clothes: v)),
                 const SizedBox(height: 4),
                 const Text('Hair style', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
                 Wrap(spacing: 8, runSpacing: 8, children: [for (final s in hairStyles) ChoiceChip(label: Text(s), selected: p.hairStyle == s, onSelected: (_) => p.setAppearance(style: s))]),
+                const SizedBox(height: 12),
+                const Text('Outfit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                Wrap(spacing: 8, runSpacing: 8, children: [for (final s in outfitStyles) ChoiceChip(label: Text(s), selected: p.outfitStyle == s, onSelected: (_) => p.setOutfit(s))]),
+                const SizedBox(height: 12),
+                const Text('Accessories', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  FilterChip(label: const Text('Glasses'), selected: p.accGlasses, onSelected: (v) => p.setAccessory('glasses', v)),
+                  FilterChip(label: const Text('Headband'), selected: p.accHeadband, onSelected: (v) => p.setAccessory('headband', v)),
+                  FilterChip(label: const Text('Scarf'), selected: p.accScarf, onSelected: (v) => p.setAccessory('scarf', v)),
+                ]),
+                const SizedBox(height: 12),
+                const Text('Scene / background', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                Wrap(spacing: 8, runSpacing: 8, children: [for (final s in backgroundStyles) ChoiceChip(label: Text(s), selected: p.background == s, onSelected: (_) => p.setBackground(s))]),
                 const Divider(height: 28),
                 const Text('PARTS', style: TextStyle(fontWeight: FontWeight.w800)),
                 for (final part in p.parts) ListTile(dense: true, leading: Icon(part.visible ? Icons.visibility : Icons.visibility_off), title: Text(part.name), subtitle: Text(part.boneId), onTap: () => p.togglePart(part.id)),
@@ -130,6 +166,12 @@ class _CharacterPageState extends State<CharacterPage> {
                   const Text('IMAGE → PART MAPPING', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
                   const SizedBox(height: 4),
                   Text('Draw a region for each part so it moves on its own bone instead of the whole image moving as one block.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => p.autoMapImageParts(),
+                    icon: const Icon(Icons.auto_fix_high),
+                    label: const Text('Auto-guess regions (rough — not real detection)'),
+                  ),
                   const SizedBox(height: 8),
                   for (final part in p.parts)
                     ListTile(
@@ -154,17 +196,120 @@ class _CharacterPageState extends State<CharacterPage> {
 
 class RigPage extends StatelessWidget { const RigPage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'Rig Studio', subtitle: 'Bones, hierarchy and part binding'), Expanded(child: Row(children: [Expanded(child: CardBox(child: ShinraViewport(project: p))), SizedBox(width: 320, child: CardBox(child: ListView(children: [FilledButton.icon(onPressed: p.autoRig, icon: const Icon(Icons.refresh), label: const Text('Rebuild Auto-Rig')), const SizedBox(height: 16), const Text('SKELETON', style: TextStyle(fontWeight: FontWeight.w800)), for (final b in p.bones) ListTile(selected: b.id == p.selectedBoneId, leading: const Icon(Icons.circle, size: 10), title: Text(b.name), subtitle: Text(b.parentId == null ? 'Root' : '↳ ${b.parentId}'), onTap: () => p.selectBone(b.id)), const Divider(), const Text('PART BINDING', style: TextStyle(fontWeight: FontWeight.w800)), for (final part in p.parts) DropdownButtonFormField<String>(value: part.boneId, decoration: InputDecoration(labelText: part.name), items: [for (final b in p.bones) DropdownMenuItem(value: b.id, child: Text(b.name))], onChanged: (v) { if (v != null) p.bindPart(part.id, v); })])))]))]); }
 
-class AnimatePage extends StatelessWidget { const AnimatePage({super.key, required this.p, required this.onPlay}); final ProjectState p; final VoidCallback onPlay; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'Animation Lab', subtitle: 'Keyframe animation on the rig'), CardBox(child: Column(children: [Row(children: [DropdownButton<String>(value: p.selectedAnimationId, items: [for (final a in p.animations) DropdownMenuItem(value: a.id, child: Text(a.name))], onChanged: (v) { if (v != null) { p.selectedAnimationId = v; p.setPlayhead(0); } }), const SizedBox(width: 12), FilledButton.icon(onPressed: onPlay, icon: Icon(p.playing ? Icons.pause : Icons.play_arrow), label: Text(p.playing ? 'Pause' : 'Play')), OutlinedButton(onPressed: p.captureKeyframe, child: const Text('Keyframe')), OutlinedButton(onPressed: p.resetPose, child: const Text('Reset'))]), const SizedBox(height: 8), Slider(value: p.playhead, min: 0, max: p.selectedAnimation.duration, onChanged: p.setPlayhead), Row(children: [for (final b in p.bones.take(6)) Expanded(child: Text('${b.name}\n${p.selectedAnimation.tracks[b.id]?.keys.length ?? 0} keys', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)))])])), Expanded(child: Padding(padding: const EdgeInsets.all(16), child: ShinraViewport(project: p))) ]); }
+class AnimatePage extends StatelessWidget {
+  const AnimatePage({super.key, required this.p, required this.onPlay});
+  final ProjectState p;
+  final VoidCallback onPlay;
+
+  Future<void> _newAnimation(BuildContext c) async {
+    final nameCtrl = TextEditingController(text: 'My Animation');
+    final durationCtrl = TextEditingController(text: '3');
+    var loop = false;
+    final ok = await showDialog<bool>(
+      context: c,
+      builder: (dc) => StatefulBuilder(builder: (dc, setS) => AlertDialog(
+            title: const Text('New animation'),
+            content: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
+              const SizedBox(height: 10),
+              TextField(controller: durationCtrl, decoration: const InputDecoration(labelText: 'Duration (seconds)'), keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+              SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Loop'), value: loop, onChanged: (v) => setS(() => loop = v)),
+            ]),
+            actions: [TextButton(onPressed: () => Navigator.pop(dc, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(dc, true), child: const Text('Create'))],
+          )),
+    );
+    if (ok == true) {
+      final d = double.tryParse(durationCtrl.text.replaceAll(',', '.')) ?? 3.0;
+      p.createAnimation(nameCtrl.text.trim().isEmpty ? 'My Animation' : nameCtrl.text.trim(), d, loop: loop);
+    }
+  }
+
+  @override
+  Widget build(BuildContext c) => Column(children: [
+        const Top(title: 'Animation Lab', subtitle: 'Keyframe animation on the rig — build your own or edit a preset'),
+        CardBox(
+          child: Column(children: [
+            Row(children: [
+              Expanded(child: DropdownButton<String>(isExpanded: true, value: p.selectedAnimationId, items: [for (final a in p.animations) DropdownMenuItem(value: a.id, child: Text('${a.name}  (${a.duration.toStringAsFixed(1)}s)'))], onChanged: (v) { if (v != null) { p.selectedAnimationId = v; p.setPlayhead(0); } })),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(onPressed: () => _newAnimation(c), icon: const Icon(Icons.add), label: const Text('New')),
+              if (p.selectedAnimationId.startsWith('custom_')) IconButton(onPressed: () => p.deleteAnimation(p.selectedAnimationId), icon: const Icon(Icons.delete_outline)),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              FilledButton.icon(onPressed: onPlay, icon: Icon(p.playing ? Icons.pause : Icons.play_arrow), label: Text(p.playing ? 'Pause' : 'Play')),
+              const SizedBox(width: 8),
+              OutlinedButton(onPressed: p.captureKeyframe, child: const Text('Keyframe')),
+              const SizedBox(width: 8),
+              OutlinedButton(onPressed: p.captureAll, child: const Text('Capture Full Pose')),
+              const SizedBox(width: 8),
+              OutlinedButton(onPressed: p.resetPose, child: const Text('Reset')),
+            ]),
+            const SizedBox(height: 8),
+            Slider(value: p.playhead, min: 0, max: p.selectedAnimation.duration, onChanged: p.setPlayhead),
+            Row(children: [for (final b in p.bones.take(6)) Expanded(child: Text('${b.name}\n${p.selectedAnimation.tracks[b.id]?.keys.length ?? 0} keys', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)))]),
+          ]),
+        ),
+        Expanded(child: Padding(padding: const EdgeInsets.all(16), child: ShinraViewport(project: p))),
+      ]);
+}
 
 class FacePage extends StatelessWidget { const FacePage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'Expression Studio', subtitle: 'Anime facial acting presets'), Expanded(child: Row(children: [Expanded(child: CardBox(child: ShinraViewport(project: p, showBones: false))), SizedBox(width: 320, child: CardBox(child: ListView(children: [for (final e in ['Neutral', 'Happy', 'Angry', 'Sad', 'Surprised', 'Terrifying', 'Determined', 'Smirk']) Padding(padding: const EdgeInsets.only(bottom: 8), child: ChoiceChip(label: Text(e), selected: p.expression == e, onSelected: (_) => p.setExpression(e)))])))]))]); }
-class FxPage extends StatelessWidget { const FxPage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => _ListTool(title: 'FX Studio', subtitle: 'Combat impacts and cinematic effects', items: ['Impact', 'Dust', 'Speed Lines', 'Energy Burst', 'Smoke', 'Spark', 'Camera Shake'], onAdd: p.addFx, entries: p.fx.map((e) => '${e.name}  •  ${e.time.toStringAsFixed(2)}s').toList()); }
-class AudioPage extends StatelessWidget { const AudioPage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => _ListTool(title: 'Audio', subtitle: 'Timeline cues for SFX and music', items: ['Impact SFX', 'Footsteps', 'Whoosh', 'Voice Cue', 'Music Start', 'Music Stop'], onAdd: p.addAudio, entries: p.audio.map((e) => '${e.name}  •  ${e.time.toStringAsFixed(2)}s').toList()); }
+class FxPage extends StatelessWidget { const FxPage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => _ListTool(title: 'FX Studio', subtitle: 'Combat impacts and cinematic effects', items: ['Impact', 'Dust', 'Speed Lines', 'Energy Burst', 'Smoke', 'Spark', 'Camera Shake'], onAdd: p.addFx, entries: p.activeFx.map((e) => '${e.name}  •  ${e.time.toStringAsFixed(2)}s').toList()); }
+class AudioPage extends StatelessWidget { const AudioPage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => _ListTool(title: 'Audio', subtitle: 'Timeline cues for SFX and music', items: ['Impact SFX', 'Footsteps', 'Whoosh', 'Voice Cue', 'Music Start', 'Music Stop'], onAdd: p.addAudio, entries: p.activeAudio.map((e) => '${e.name}  •  ${e.time.toStringAsFixed(2)}s').toList()); }
 class _ListTool extends StatelessWidget { const _ListTool({required this.title, required this.subtitle, required this.items, required this.onAdd, required this.entries}); final String title, subtitle; final List<String> items, entries; final void Function(String) onAdd; @override Widget build(BuildContext c) => Column(children: [Top(title: title, subtitle: subtitle), Expanded(child: Row(children: [Expanded(child: CardBox(child: ListView(children: [for (final x in items) ListTile(leading: const Icon(Icons.add_circle_outline), title: Text(x), trailing: FilledButton(onPressed: () => onAdd(x), child: const Text('Add')))]))), SizedBox(width: 300, child: CardBox(child: ListView(children: [const Text('TIMELINE EVENTS', style: TextStyle(fontWeight: FontWeight.w800)), const SizedBox(height: 12), for (final x in entries) ListTile(title: Text(x))])))]))]); }
 
 class CameraPage extends StatelessWidget { const CameraPage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'Camera', subtitle: 'Cinematic framing and motion'), Expanded(child: Row(children: [Expanded(child: CardBox(child: ShinraViewport(project: p, showBones: false))), SizedBox(width: 320, child: CardBox(child: ListView(children: [_Num('X', p.camera.x, (v) => p.setCamera(x: v)), _Num('Y', p.camera.y, (v) => p.setCamera(y: v)), _Num('Zoom', p.camera.zoom, (v) => p.setCamera(zoom: v)), _Num('Rotation', p.camera.rotation, (v) => p.setCamera(rotation: v)), FilledButton(onPressed: () => p.setCamera(x: 0, y: 0, zoom: 1, rotation: 0), child: const Text('Reset Camera'))])))]))]); }
 
-class AiPage extends StatefulWidget { const AiPage({super.key, required this.p}); final ProjectState p; @override State<AiPage> createState() => _AiPageState(); }
-class _AiPageState extends State<AiPage> { final controller = TextEditingController(); List<DirectorAction> actions = []; @override void dispose() { controller.dispose(); super.dispose(); } @override Widget build(BuildContext c) => Column(children: [const Top(title: 'AI Director', subtitle: 'Translate direction into editable timeline actions'), Expanded(child: Padding(padding: const EdgeInsets.all(24), child: CardBox(child: Column(children: [TextField(controller: controller, minLines: 4, maxLines: 6, decoration: const InputDecoration(labelText: 'Direction', hintText: 'Ex: fais courir mon personnage, arrête-le, regarde derrière puis frappe', border: OutlineInputBorder())), const SizedBox(height: 12), Align(alignment: Alignment.centerRight, child: FilledButton.icon(onPressed: () { setState(() => actions = AiDirector.parse(controller.text)); widget.p.status = '${actions.length} AI actions planned'; widget.p.notifyListeners(); }, icon: const Icon(Icons.auto_awesome), label: const Text('Plan scene'))), const SizedBox(height: 18), Expanded(child: ListView(children: [for (final a in actions) ListTile(leading: const Icon(Icons.drag_indicator), title: Text(a.label), subtitle: Text('at ${a.time.toStringAsFixed(1)}s'), trailing: const Icon(Icons.edit))]))]))))]); }
+
+class AiPage extends StatefulWidget {
+  const AiPage({super.key, required this.p, required this.onPlaySequence});
+  final ProjectState p;
+  final void Function(List<String> clipIds) onPlaySequence;
+  @override
+  State<AiPage> createState() => _AiPageState();
+}
+
+class _AiPageState extends State<AiPage> {
+  final controller = TextEditingController();
+  List<DirectorAction> actions = [];
+
+  @override
+  void dispose() { controller.dispose(); super.dispose(); }
+
+  IconData _icon(DirectorAction a) => switch (a.kind) { 'clip' => Icons.directions_run, 'expression' => Icons.face, 'fx' => Icons.auto_awesome, _ => Icons.circle };
+
+  void _applyAndPlay() {
+    final expr = actions.where((a) => a.kind == 'expression').firstOrNull;
+    if (expr != null) widget.p.setExpression(expr.value!);
+    for (final a in actions.where((a) => a.kind == 'fx')) widget.p.addFx(a.value!);
+    final clipIds = [for (final a in actions.where((a) => a.kind == 'clip')) a.clipId!];
+    if (clipIds.isNotEmpty) widget.onPlaySequence(clipIds);
+  }
+
+  @override
+  Widget build(BuildContext c) => Column(children: [
+        const Top(title: 'AI Director', subtitle: 'Direction in, real playback out — chains your existing clips'),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: CardBox(
+              child: Column(children: [
+                TextField(controller: controller, minLines: 4, maxLines: 6, decoration: const InputDecoration(labelText: 'Direction', hintText: 'Ex: fais courir mon personnage, arrête-le, puis frappe', border: OutlineInputBorder())),
+                const SizedBox(height: 12),
+                Align(alignment: Alignment.centerRight, child: OutlinedButton.icon(onPressed: () { setState(() => actions = AiDirector.parse(controller.text, widget.p)); }, icon: const Icon(Icons.auto_awesome), label: const Text('Plan scene'))),
+                const SizedBox(height: 12),
+                Expanded(child: ListView(children: [for (final a in actions) ListTile(leading: Icon(_icon(a)), title: Text(a.label), subtitle: Text(a.kind == 'clip' ? 'plays this clip in sequence' : a.kind == 'expression' ? 'sets facial expression' : 'triggered once at start'))])),
+                if (actions.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerRight, child: FilledButton.icon(onPressed: _applyAndPlay, icon: const Icon(Icons.play_arrow), label: const Text('Apply & Play'))),
+                ],
+              ]),
+            ),
+          ),
+        ),
+      ]);
+}
 
 /// Browsable library of everything already available in the project: ready-made
 /// movement/combat animations, facial expressions, FX and audio cues — so the
@@ -296,31 +441,93 @@ class _LibraryPageState extends State<LibraryPage> with SingleTickerProviderStat
   }
 }
 
-class ExportPage extends StatelessWidget {
+class ExportPage extends StatefulWidget {
   const ExportPage({super.key, required this.p});
   final ProjectState p;
   @override
-  Widget build(BuildContext c) => Column(children: [
-        const Top(title: 'Project', subtitle: 'Save, restore and prepare export'),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: CardBox(
-              child: ListView(children: [
-                const Text('SHINRA PROJECT', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 8),
-                Text('Bones: ${p.bones.length}   Parts: ${p.parts.length}   Animations: ${p.animations.length}'),
-                Text('FX: ${p.fx.length}   Audio cues: ${p.audio.length}'),
-                const SizedBox(height: 24),
-                FilledButton.icon(onPressed: () => ProjectStore.save(p), icon: const Icon(Icons.save), label: const Text('Save Project')),
-                OutlinedButton.icon(onPressed: () => ProjectStore.load(p), icon: const Icon(Icons.folder_open), label: const Text('Load Project')),
-                const SizedBox(height: 20),
-                const Text('Export pipeline', style: TextStyle(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 8),
-                const Text('The editor data is ready for a dedicated video encoder/export backend. This build intentionally keeps the project format deterministic instead of pretending to render MP4 locally.'),
-              ]),
+  State<ExportPage> createState() => _ExportPageState();
+}
+
+class _ExportPageState extends State<ExportPage> {
+  final boundaryKey = GlobalKey();
+  int fps = 12;
+  bool exporting = false;
+  int frameDone = 0;
+  int frameTotal = 0;
+  String? resultPath;
+
+  Future<void> _export() async {
+    setState(() { exporting = true; resultPath = null; frameDone = 0; frameTotal = 0; });
+    try {
+      final path = await GifExporter.export(boundaryKey, widget.p, fps: fps, onProgress: (a, b) { if (mounted) setState(() { frameDone = a; frameTotal = b; }); });
+      if (mounted) setState(() => resultPath = path);
+    } catch (err) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $err')));
+    } finally {
+      if (mounted) setState(() => exporting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext c) {
+    final p = widget.p;
+    return Column(children: [
+      const Top(title: 'Project', subtitle: 'Save, restore and export a real GIF'),
+      Expanded(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: CardBox(
+                child: ListView(children: [
+                  const Text('SHINRA PROJECT', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  Text('Bones: ${p.bones.length}   Parts: ${p.parts.length}   Animations: ${p.animations.length}'),
+                  Text('FX: ${p.fx.length}   Audio cues: ${p.audio.length}'),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(onPressed: () => ProjectStore.save(p), icon: const Icon(Icons.save), label: const Text('Save Project')),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(onPressed: () => ProjectStore.load(p), icon: const Icon(Icons.folder_open), label: const Text('Load Project')),
+                  const SizedBox(height: 20),
+                  const Text('Export', style: TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text('Exports the clip currently selected in Animation Lab ("${p.selectedAnimation.name}") as a real animated GIF file — captured frame by frame from the render below.', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(.6))),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    const Text('FPS'),
+                    const SizedBox(width: 10),
+                    for (final f in [8, 12, 24])
+                      Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(label: Text('$f'), selected: fps == f, onSelected: exporting ? null : (_) => setState(() => fps = f))),
+                  ]),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: exporting ? null : _export,
+                    icon: exporting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.movie_creation_outlined),
+                    label: Text(exporting ? 'Exporting frame $frameDone / $frameTotal…' : 'Export as GIF'),
+                  ),
+                  if (resultPath != null) ...[
+                    const SizedBox(height: 14),
+                    SelectableText('Saved to:\n$resultPath', style: const TextStyle(fontSize: 12)),
+                  ],
+                  const SizedBox(height: 20),
+                  Text('Real MP4/video export (with audio) is a bigger separate piece of work — not built yet.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.45))),
+                ]),
+              ),
             ),
-          ),
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 260,
+              child: CardBox(
+                child: Column(children: [
+                  const Text('Export render target', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  RepaintBoundary(key: boundaryKey, child: SizedBox(width: 220, height: 260, child: ShinraViewport(project: p, showBones: false))),
+                ]),
+              ),
+            ),
+          ]),
         ),
-      ]);
+      ),
+    ]);
+  }
 }

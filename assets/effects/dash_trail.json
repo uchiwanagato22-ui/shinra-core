@@ -1,0 +1,18 @@
+{
+  "id": "dash_trail",
+  "name": "Dash Trail",
+  "category": "FX",
+  "duration": 0.5,
+  "loop": false,
+  "particle_type": "streak",
+  "color": "0xFF00FFFF",
+  "intensity": 0.7,
+  "spread": 15,
+  "speed": 15.0,
+  "direction_lock": true,
+  "keyframes": [
+    {"time": 0.0, "intensity": 1.0, "scale": 1.0},
+    {"time": 0.25, "intensity": 0.7, "scale": 0.8},
+    {"time": 0.5, "intensity": 0.0, "scale": 0.0}
+  ]
+}

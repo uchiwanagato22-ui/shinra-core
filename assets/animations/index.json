@@ -1,0 +1,124 @@
+{
+  "animations": [
+    {
+      "id": "idle",
+      "name": "Idle",
+      "category": "movement",
+      "duration": 1.5,
+      "loop": true,
+      "file": "idle.json"
+    },
+    {
+      "id": "walk_forward",
+      "name": "Walk Forward",
+      "category": "movement",
+      "duration": 1.2,
+      "loop": true,
+      "file": "walk_forward.json"
+    },
+    {
+      "id": "run",
+      "name": "Running",
+      "category": "movement",
+      "duration": 0.6,
+      "loop": true,
+      "file": "run.json"
+    },
+    {
+      "id": "jump",
+      "name": "Jump",
+      "category": "movement",
+      "duration": 0.6,
+      "loop": false,
+      "file": "jump.json"
+    },
+    {
+      "id": "punch",
+      "name": "Punch",
+      "category": "combat",
+      "duration": 0.4,
+      "loop": false,
+      "file": "punch.json"
+    },
+    {
+      "id": "kick",
+      "name": "Kick",
+      "category": "combat",
+      "duration": 0.8,
+      "loop": false,
+      "file": "kick.json"
+    },
+    {
+      "id": "dodge",
+      "name": "Dodge Roll",
+      "category": "combat",
+      "duration": 0.6,
+      "loop": false,
+      "file": "dodge.json"
+    },
+    {
+      "id": "defend",
+      "name": "Defend Stance",
+      "category": "combat",
+      "duration": 1.0,
+      "loop": true,
+      "file": "defend.json"
+    },
+    {
+      "id": "fall",
+      "name": "Falling",
+      "category": "movement",
+      "duration": 1.0,
+      "loop": false,
+      "file": "fall.json"
+    },
+    {
+      "id": "land",
+      "name": "Landing",
+      "category": "movement",
+      "duration": 0.4,
+      "loop": false,
+      "file": "land.json"
+    },
+    {
+      "id": "blink",
+      "name": "Blink",
+      "category": "face",
+      "duration": 0.2,
+      "loop": false,
+      "file": "blink.json"
+    },
+    {
+      "id": "smile",
+      "name": "Smile",
+      "category": "face",
+      "duration": 0.3,
+      "loop": false,
+      "file": "smile.json"
+    },
+    {
+      "id": "angry",
+      "name": "Angry Expression",
+      "category": "face",
+      "duration": 0.2,
+      "loop": false,
+      "file": "angry.json"
+    },
+    {
+      "id": "fire_burst",
+      "name": "Fire Burst",
+      "category": "fx",
+      "duration": 0.6,
+      "loop": false,
+      "file": "fire_burst.json"
+    },
+    {
+      "id": "lightning",
+      "name": "Lightning Strike",
+      "category": "fx",
+      "duration": 0.3,
+      "loop": false,
+      "file": "lightning.json"
+    }
+  ]
+}

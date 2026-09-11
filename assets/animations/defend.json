@@ -1,0 +1,14 @@
+{
+  "id": "defend",
+  "name": "Defend Stance",
+  "category": "Combat",
+  "duration": 1.0,
+  "loop": true,
+  "tracks": {
+    "leg_left": [{"time": 0.0, "x": -15, "y": 100, "rotation": 0, "scale": 1.0}, {"time": 0.5, "x": -15, "y": 100, "rotation": 0, "scale": 1.0}, {"time": 1.0, "x": -15, "y": 100, "rotation": 0, "scale": 1.0}],
+    "leg_right": [{"time": 0.0, "x": 5, "y": 100, "rotation": 0, "scale": 1.0}, {"time": 0.5, "x": 5, "y": 100, "rotation": 0, "scale": 1.0}, {"time": 1.0, "x": 5, "y": 100, "rotation": 0, "scale": 1.0}],
+    "arm_left": [{"time": 0.0, "x": -25, "y": 50, "rotation": 45, "scale": 1.0}, {"time": 0.5, "x": -25, "y": 48, "rotation": 50, "scale": 1.0}, {"time": 1.0, "x": -25, "y": 50, "rotation": 45, "scale": 1.0}],
+    "arm_right": [{"time": 0.0, "x": 25, "y": 50, "rotation": -45, "scale": 1.0}, {"time": 0.5, "x": 25, "y": 48, "rotation": -50, "scale": 1.0}, {"time": 1.0, "x": 25, "y": 50, "rotation": -45, "scale": 1.0}],
+    "torso": [{"time": 0.0, "x": 0, "y": 50, "rotation": 0, "scale": 1.0}, {"time": 0.5, "x": -2, "y": 50, "rotation": -3, "scale": 1.0}, {"time": 1.0, "x": 0, "y": 50, "rotation": 0, "scale": 1.0}]
+  }
+}

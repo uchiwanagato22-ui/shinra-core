@@ -1,0 +1,82 @@
+{
+  "version": "1.0",
+  "total": 8,
+  "audio": [
+    {
+      "id": "bgm_epic",
+      "name": "Epic Battle Theme",
+      "category": "BGM",
+      "file": "bgm_epic.mp3",
+      "duration": 120.0,
+      "loop": true,
+      "volume": 0.7
+    },
+    {
+      "id": "bgm_calm",
+      "name": "Calm Town Theme",
+      "category": "BGM",
+      "file": "bgm_calm.mp3",
+      "duration": 90.0,
+      "loop": true,
+      "volume": 0.6
+    },
+    {
+      "id": "sfx_punch",
+      "name": "Punch Hit",
+      "category": "SFX",
+      "file": "sfx_punch.wav",
+      "duration": 0.2,
+      "loop": false,
+      "volume": 0.8
+    },
+    {
+      "id": "sfx_kick",
+      "name": "Kick Hit",
+      "category": "SFX",
+      "file": "sfx_kick.wav",
+      "duration": 0.3,
+      "loop": false,
+      "volume": 0.8
+    },
+    {
+      "id": "sfx_slash",
+      "name": "Sword Slash",
+      "category": "SFX",
+      "file": "sfx_slash.wav",
+      "duration": 0.25,
+      "loop": false,
+      "volume": 0.9
+    },
+    {
+      "id": "sfx_explosion",
+      "name": "Explosion",
+      "category": "SFX",
+      "file": "sfx_explosion.wav",
+      "duration": 0.5,
+      "loop": false,
+      "volume": 1.0
+    },
+    {
+      "id": "sfx_impact",
+      "name": "Impact Boom",
+      "category": "SFX",
+      "file": "sfx_impact.wav",
+      "duration": 0.4,
+      "loop": false,
+      "volume": 0.9
+    },
+    {
+      "id": "sfx_whoosh",
+      "name": "Whoosh Wind",
+      "category": "SFX",
+      "file": "sfx_whoosh.wav",
+      "duration": 0.3,
+      "loop": false,
+      "volume": 0.7
+    }
+  ],
+  "categories": {
+    "BGM": ["bgm_epic", "bgm_calm"],
+    "SFX": ["sfx_punch", "sfx_kick", "sfx_slash", "sfx_explosion", "sfx_impact", "sfx_whoosh"]
+  }
+}

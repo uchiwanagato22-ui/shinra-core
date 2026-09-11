@@ -1,0 +1,18 @@
+{
+  "id": "smoke",
+  "name": "Smoke Cloud",
+  "category": "FX",
+  "duration": 2.0,
+  "loop": true,
+  "particle_type": "smoke",
+  "color": "0xFF808080",
+  "intensity": 0.6,
+  "spread": 180,
+  "speed": 1.0,
+  "keyframes": [
+    {"time": 0.0, "intensity": 0.0, "scale": 0.0},
+    {"time": 0.5, "intensity": 0.8, "scale": 1.5},
+    {"time": 1.5, "intensity": 0.4, "scale": 2.0},
+    {"time": 2.0, "intensity": 0.0, "scale": 0.0}
+  ]
+}

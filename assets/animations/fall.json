@@ -1,0 +1,14 @@
+{
+  "id": "fall",
+  "name": "Falling",
+  "category": "Movement",
+  "duration": 1.0,
+  "loop": false,
+  "tracks": {
+    "leg_left": [{"time": 0.0, "x": -10, "y": 100, "rotation": 0, "scale": 1.0}, {"time": 0.3, "x": -20, "y": 60, "rotation": -45, "scale": 1.0}, {"time": 0.7, "x": -25, "y": 20, "rotation": -80, "scale": 1.0}, {"time": 1.0, "x": -25, "y": 0, "rotation": -90, "scale": 1.0}],
+    "leg_right": [{"time": 0.0, "x": 10, "y": 100, "rotation": 0, "scale": 1.0}, {"time": 0.3, "x": 20, "y": 60, "rotation": 45, "scale": 1.0}, {"time": 0.7, "x": 25, "y": 20, "rotation": 80, "scale": 1.0}, {"time": 1.0, "x": 25, "y": 0, "rotation": 90, "scale": 1.0}],
+    "arm_left": [{"time": 0.0, "x": -30, "y": 60, "rotation": -10, "scale": 1.0}, {"time": 0.3, "x": -40, "y": 40, "rotation": 90, "scale": 1.0}, {"time": 0.7, "x": -50, "y": 10, "rotation": 160, "scale": 1.0}, {"time": 1.0, "x": -50, "y": 0, "rotation": 180, "scale": 1.0}],
+    "arm_right": [{"time": 0.0, "x": 30, "y": 60, "rotation": 10, "scale": 1.0}, {"time": 0.3, "x": 40, "y": 40, "rotation": -90, "scale": 1.0}, {"time": 0.7, "x": 50, "y": 10, "rotation": -160, "scale": 1.0}, {"time": 1.0, "x": 50, "y": 0, "rotation": -180, "scale": 1.0}],
+    "torso": [{"time": 0.0, "x": 0, "y": 50, "rotation": 0, "scale": 1.0}, {"time": 0.3, "x": 0, "y": 40, "rotation": 45, "scale": 1.0}, {"time": 0.7, "x": 0, "y": 20, "rotation": 80, "scale": 1.0}, {"time": 1.0, "x": 0, "y": 0, "rotation": 90, "scale": 1.0}]
+  }
+}

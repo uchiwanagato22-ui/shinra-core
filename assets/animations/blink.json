@@ -1,0 +1,8 @@
+{
+  "id": "blink",
+  "name": "Blink",
+  "category": "Face",
+  "duration": 0.15,
+  "loop": false,
+  "tracks": {}
+}

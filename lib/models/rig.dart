@@ -11,7 +11,12 @@ const skinPalette = [Color(0xFFE9B18E), Color(0xFFF6D3B0), Color(0xFFC98A5B), Co
 const hairPalette = [Color(0xFF151722), Color(0xFF3B2A1E), Color(0xFF8A4B2A), Color(0xFFC9A227), Color(0xFFB23A48), Color(0xFF4A6FE0), Color(0xFFE0E0E0)];
 const eyePalette = [Color(0xFF151722), Color(0xFF2E6DB4), Color(0xFF3E8E4F), Color(0xFF7C4DBE), Color(0xFFB23A48), Color(0xFFC9A227)];
 const clothesPalette = [Color(0xFF2C3448), Color(0xFF7C2431), Color(0xFF1F5C4C), Color(0xFF2F4A7C), Color(0xFF4A4A52), Color(0xFF8C6A2F)];
-const hairStyles = ['Court', 'Long', 'Spike', 'Queue', 'Chauve'];
+const hairStyles = ['Court', 'Long', 'Spike', 'Queue', 'Chauve', 'Frange', 'Afro', 'Mohawk'];
+const eyeShapes = ['Round', 'Sharp', 'Sleepy', 'Wide', 'Cat'];
+/// Generic silhouettes only — no outfit is modeled after a specific franchise
+/// character, on purpose.
+const outfitStyles = ['Hoodie', 'Jacket', 'Robe', 'Dress', 'Tank', 'Armor', 'Cape'];
+const backgroundStyles = ['Void', 'Forest', 'Rooftop City', 'Dojo', 'Sunset Sky'];
 
 class Bone {
   Bone({required this.id, required this.name, required this.type, this.parentId, this.x = 0, this.y = 0, this.rotation = 0, this.length = 60, this.scale = 1});
@@ -87,17 +92,19 @@ class CameraState {
 }
 
 class FxEvent {
-  FxEvent({required this.id, required this.name, required this.time});
+  FxEvent({required this.id, required this.name, required this.time, required this.clipId});
   final String id;
   final String name;
   final double time;
+  final String clipId;
 }
 
 class AudioCue {
-  AudioCue({required this.id, required this.name, required this.time});
+  AudioCue({required this.id, required this.name, required this.time, required this.clipId});
   final String id;
   final String name;
   final double time;
+  final String clipId;
 }
 
 Bone makeBone(String id, String name, BoneType type, String? parent, double x, double y, double length, [double rotation = 0]) => Bone(id: id, name: name, type: type, parentId: parent, x: x, y: y, length: length, rotation: rotation);
@@ -123,9 +130,14 @@ List<CharacterPart> defaultParts() => [
   CharacterPart(id: 'eyes', name: 'Eyes', type: PartType.eyes, boneId: 'head'),
   CharacterPart(id: 'mouth', name: 'Mouth', type: PartType.mouth, boneId: 'head'),
   CharacterPart(id: 'clothes', name: 'Clothes', type: PartType.clothes, boneId: 'torso'),
+  CharacterPart(id: 'arm_l', name: 'Arm L', type: PartType.body, boneId: 'arm_l'),
+  CharacterPart(id: 'arm_r', name: 'Arm R', type: PartType.body, boneId: 'arm_r'),
+  CharacterPart(id: 'leg_l', name: 'Leg L', type: PartType.body, boneId: 'leg_l'),
+  CharacterPart(id: 'leg_r', name: 'Leg R', type: PartType.body, boneId: 'leg_r'),
   CharacterPart(id: 'hand_l', name: 'Hand L', type: PartType.hand, boneId: 'hand_l'),
   CharacterPart(id: 'hand_r', name: 'Hand R', type: PartType.hand, boneId: 'hand_r'),
-  CharacterPart(id: 'shoes', name: 'Shoes', type: PartType.shoes, boneId: 'foot_l'),
+  CharacterPart(id: 'shoes_l', name: 'Shoe L', type: PartType.shoes, boneId: 'foot_l'),
+  CharacterPart(id: 'shoes_r', name: 'Shoe R', type: PartType.shoes, boneId: 'foot_r'),
 ];
 
 class ProjectState extends ChangeNotifier {
@@ -154,6 +166,12 @@ class ProjectState extends ChangeNotifier {
   Color eyeColor = eyePalette.first;
   Color clothesColor = clothesPalette.first;
   String hairStyle = hairStyles.first;
+  String eyeShape = eyeShapes.first;
+  String outfitStyle = outfitStyles.first;
+  String background = backgroundStyles.first;
+  bool accGlasses = false;
+  bool accHeadband = false;
+  bool accScarf = false;
   double playhead = 0;
   bool playing = false;
   String tool = 'select';
@@ -253,20 +271,89 @@ class ProjectState extends ChangeNotifier {
   void selectBone(String id) { selectedBoneId = id; notifyListeners(); }
   void setTool(String value) { tool = value; notifyListeners(); }
   void setExpression(String value) { expression = value; notifyListeners(); }
-  void setAppearance({Color? skin, Color? hair, Color? eyes, Color? clothes, String? style}) {
+  void setAppearance({Color? skin, Color? hair, Color? eyes, Color? clothes, String? style, String? eyeShape}) {
     if (skin != null) skinColor = skin;
     if (hair != null) hairColor = hair;
     if (eyes != null) eyeColor = eyes;
     if (clothes != null) clothesColor = clothes;
     if (style != null) hairStyle = style;
+    if (eyeShape != null) this.eyeShape = eyeShape;
     status = 'Appearance updated';
     notifyListeners();
   }
   void toggleUseImageAsBody(bool value) { useImageAsBody = value; status = value ? 'Using uploaded image as body' : 'Using drawn character'; notifyListeners(); }
+  void setOutfit(String v) { outfitStyle = v; notifyListeners(); }
+  void setBackground(String v) { background = v; notifyListeners(); }
+  void setAccessory(String name, bool v) {
+    switch (name) { case 'glasses': accGlasses = v; break; case 'headband': accHeadband = v; break; case 'scarf': accScarf = v; break; }
+    notifyListeners();
+  }
   void setPartCrop(String partId, Rect? crop) { parts.firstWhere((p) => p.id == partId).crop = crop; status = crop == null ? 'Region cleared' : 'Region mapped'; notifyListeners(); }
   bool get hasAnyPartCrop => parts.any((p) => p.crop != null);
-  void selectAnimation(String id) { selectedAnimationId = id; setPlayhead(0); }
-  void setPlayhead(double value) { playhead = value.clamp(0, selectedAnimation.duration); notifyListeners(); }
+
+  /// Rough starting guess based on standard standing-figure proportions —
+  /// NOT real detection (no ML model available here). Meant to save time
+  /// versus drawing every rectangle from a blank image; the user is expected
+  /// to nudge each region afterwards via "Set region".
+  void autoMapImageParts() {
+    void set(String id, double l, double t, double w, double h) => parts.firstWhere((p) => p.id == id).crop = Rect.fromLTWH(l, t, w, h);
+    set('face', .32, .0, .36, .18);
+    set('hair', .28, .0, .44, .16);
+    set('body', .25, .16, .50, .34);
+    set('clothes', .25, .16, .50, .34);
+    set('arm_l', .04, .18, .24, .34);
+    set('arm_r', .72, .18, .24, .34);
+    set('hand_l', .02, .48, .14, .10);
+    set('hand_r', .84, .48, .14, .10);
+    set('leg_l', .27, .50, .22, .42);
+    set('leg_r', .51, .50, .22, .42);
+    set('shoes_l', .27, .90, .22, .10);
+    set('shoes_r', .51, .90, .22, .10);
+    status = 'Rough regions guessed — nudge each one, this is not real detection';
+    notifyListeners();
+  }
+  void selectAnimation(String id) { selectedAnimationId = id; _playedAudioIds.clear(); _lastAudioPlayhead = -1; setPlayhead(0); }
+  /// Lets the user build their own animation from scratch instead of being
+  /// limited to the 12 built-in presets — key poses by hand at whatever
+  /// duration the scene actually needs.
+  void createAnimation(String name, double duration, {bool loop = false}) {
+    final id = 'custom_${DateTime.now().microsecondsSinceEpoch}';
+    final clip = AnimationClip(id: id, name: name, category: AnimCategory.movement, duration: duration.clamp(0.2, 120), loop: loop);
+    for (final b in bones) clip.track(b.id).upsert(PoseKeyframe(time: 0, x: b.x, y: b.y, rotation: b.rotation, scale: b.scale));
+    animations.add(clip);
+    selectAnimation(id);
+    status = '"$name" created ($duration s)';
+  }
+  void deleteAnimation(String id) {
+    if (animations.length <= 1) return;
+    animations.removeWhere((c) => c.id == id);
+    fx.removeWhere((e) => e.clipId == id);
+    audio.removeWhere((e) => e.clipId == id);
+    if (selectedAnimationId == id) selectAnimation(animations.first.id);
+    notifyListeners();
+  }
+
+  /// A queued sequence of clip ids to play back to back — what lets the AI
+  /// Director actually direct the character (courir puis frapper) instead of
+  /// only listing text nobody can run.
+  List<String> queue = [];
+  int queueIndex = 0;
+  void startQueue(List<String> clipIds) {
+    queue = List.of(clipIds);
+    queueIndex = 0;
+    if (queue.isNotEmpty) selectAnimation(queue.first);
+  }
+
+  /// Called by the playback timer when the current clip finishes. Returns
+  /// true if it advanced to the next queued clip (caller should keep
+  /// playing), false if the queue is exhausted (caller should stop).
+  bool advanceQueue() {
+    if (queue.isEmpty || queueIndex >= queue.length - 1) { queue = []; queueIndex = 0; return false; }
+    queueIndex++;
+    selectAnimation(queue[queueIndex]);
+    return true;
+  }
+  void setPlayhead(double value) { playhead = value.clamp(0, selectedAnimation.duration); if (value <= 0) { _playedAudioIds.clear(); _lastAudioPlayhead = -1; } notifyListeners(); }
   void setCamera({double? x, double? y, double? zoom, double? rotation}) { if (x != null) camera.x = x; if (y != null) camera.y = y; if (zoom != null) camera.zoom = zoom.clamp(.2, 4); if (rotation != null) camera.rotation = rotation; notifyListeners(); }
 
   void setBone({double? x, double? y, double? rotation, double? scale}) {
@@ -294,8 +381,21 @@ class ProjectState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addFx(String name) { fx.add(FxEvent(id: DateTime.now().microsecondsSinceEpoch.toString(), name: name, time: playhead)); status = '$name added'; notifyListeners(); }
-  void addAudio(String name) { audio.add(AudioCue(id: DateTime.now().microsecondsSinceEpoch.toString(), name: name, time: playhead)); status = '$name cue added'; notifyListeners(); }
+  void addFx(String name) { fx.add(FxEvent(id: DateTime.now().microsecondsSinceEpoch.toString(), name: name, time: playhead, clipId: selectedAnimationId)); status = '$name added'; notifyListeners(); }
+  void addAudio(String name) { audio.add(AudioCue(id: DateTime.now().microsecondsSinceEpoch.toString(), name: name, time: playhead, clipId: selectedAnimationId)); status = '$name cue added'; notifyListeners(); }
+
+  /// FX/audio belonging to the animation clip currently open — previously fx
+  /// and audio were one flat list shared by every clip, so switching clips
+  /// still showed/triggered cues that were placed on a different animation.
+  List<FxEvent> get activeFx => fx.where((e) => e.clipId == selectedAnimationId).toList();
+  List<AudioCue> get activeAudio => audio.where((e) => e.clipId == selectedAnimationId).toList();
+
+  /// Called by the UI layer (which owns the actual audio player) whenever
+  /// playback crosses an audio cue, so the sound only fires once per pass
+  /// instead of every repaint while the playhead sits on top of it.
+  void Function(String name)? onAudioCue;
+  final Set<String> _playedAudioIds = {};
+  double _lastAudioPlayhead = -1;
 
   void resetPose() { for (final b in bones) { final d = defaultBones().firstWhere((x) => x.id == b.id); b.x = d.x; b.y = d.y; b.rotation = d.rotation; b.scale = d.scale; } captureHistory(); notifyListeners(); }
 
@@ -313,7 +413,19 @@ class ProjectState extends ChangeNotifier {
       final t = span < .0001 ? 0.0 : _ease(((local - a.time) / span).clamp(0, 1));
       b.x = _lerp(a.x, c.x, t); b.y = _lerp(a.y, c.y, t); b.rotation = _lerpAngle(a.rotation, c.rotation, t); b.scale = _lerp(a.scale, c.scale, t);
     }
-    playhead = time.clamp(0, clip.duration);
+    if (local < _lastAudioPlayhead) _playedAudioIds.clear(); // looped back to the start
+    for (final cue in activeAudio) {
+      if (cue.time <= local && cue.time > _lastAudioPlayhead && !_playedAudioIds.contains(cue.id)) {
+        _playedAudioIds.add(cue.id);
+        onAudioCue?.call(cue.name);
+      }
+    }
+    _lastAudioPlayhead = local;
+    // For looping clips the raw playback time grows unbounded while the pose
+    // uses `local` (wrapped) — keep the displayed playhead wrapped too,
+    // otherwise the timeline slider freezes at the end while the character
+    // keeps animating.
+    playhead = clip.loop ? local : time.clamp(0, clip.duration);
     notifyListeners();
   }
 

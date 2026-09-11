@@ -1,0 +1,18 @@
+{
+  "id": "water_splash",
+  "name": "Water Splash",
+  "category": "FX",
+  "duration": 0.6,
+  "loop": false,
+  "particle_type": "water",
+  "color": "0xFF0099FF",
+  "intensity": 0.8,
+  "spread": 270,
+  "speed": 5.0,
+  "keyframes": [
+    {"time": 0.0, "intensity": 1.0, "scale": 0.8},
+    {"time": 0.2, "intensity": 0.9, "scale": 1.3},
+    {"time": 0.4, "intensity": 0.4, "scale": 1.5},
+    {"time": 0.6, "intensity": 0.0, "scale": 0.0}
+  ]
+}

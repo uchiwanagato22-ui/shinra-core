@@ -1,0 +1,52 @@
+{
+  "id": "walk_forward",
+  "name": "Walk Forward",
+  "category": "movement",
+  "duration": 1.2,
+  "loop": true,
+  "tracks": {
+    "leg_left": [
+      {"time": 0.0, "x": 0, "y": 0, "rotation": -20, "scale": 1.0},
+      {"time": 0.15, "x": 5, "y": -8, "rotation": 10, "scale": 1.0},
+      {"time": 0.3, "x": 8, "y": -12, "rotation": 30, "scale": 1.0},
+      {"time": 0.45, "x": 5, "y": -8, "rotation": 20, "scale": 1.0},
+      {"time": 0.6, "x": 0, "y": 0, "rotation": 0, "scale": 1.0},
+      {"time": 0.75, "x": -5, "y": 5, "rotation": -10, "scale": 1.0},
+      {"time": 0.9, "x": -8, "y": 8, "rotation": -20, "scale": 1.0},
+      {"time": 1.05, "x": -5, "y": 5, "rotation": -10, "scale": 1.0},
+      {"time": 1.2, "x": 0, "y": 0, "rotation": -20, "scale": 1.0}
+    ],
+    "leg_right": [
+      {"time": 0.0, "x": 0, "y": 0, "rotation": 20, "scale": 1.0},
+      {"time": 0.15, "x": -5, "y": 5, "rotation": 10, "scale": 1.0},
+      {"time": 0.3, "x": -8, "y": 8, "rotation": 0, "scale": 1.0},
+      {"time": 0.45, "x": -5, "y": 5, "rotation": -10, "scale": 1.0},
+      {"time": 0.6, "x": 0, "y": 0, "rotation": -20, "scale": 1.0},
+      {"time": 0.75, "x": 5, "y": -8, "rotation": -20, "scale": 1.0},
+      {"time": 0.9, "x": 8, "y": -12, "rotation": -10, "scale": 1.0},
+      {"time": 1.05, "x": 5, "y": -8, "rotation": 10, "scale": 1.0},
+      {"time": 1.2, "x": 0, "y": 0, "rotation": 20, "scale": 1.0}
+    ],
+    "arm_left": [
+      {"time": 0.0, "x": 0, "y": 0, "rotation": 20, "scale": 1.0},
+      {"time": 0.3, "x": 8, "y": -5, "rotation": 40, "scale": 1.0},
+      {"time": 0.6, "x": 0, "y": 0, "rotation": -20, "scale": 1.0},
+      {"time": 0.9, "x": -8, "y": 5, "rotation": -40, "scale": 1.0},
+      {"time": 1.2, "x": 0, "y": 0, "rotation": 20, "scale": 1.0}
+    ],
+    "arm_right": [
+      {"time": 0.0, "x": 0, "y": 0, "rotation": -20, "scale": 1.0},
+      {"time": 0.3, "x": -8, "y": 5, "rotation": -40, "scale": 1.0},
+      {"time": 0.6, "x": 0, "y": 0, "rotation": 20, "scale": 1.0},
+      {"time": 0.9, "x": 8, "y": -5, "rotation": 40, "scale": 1.0},
+      {"time": 1.2, "x": 0, "y": 0, "rotation": -20, "scale": 1.0}
+    ],
+    "torso": [
+      {"time": 0.0, "x": 0, "y": 0, "rotation": 0, "scale": 1.0},
+      {"time": 0.3, "x": 2, "y": 0, "rotation": 2, "scale": 1.0},
+      {"time": 0.6, "x": 0, "y": 0, "rotation": 0, "scale": 1.0},
+      {"time": 0.9, "x": -2, "y": 0, "rotation": -2, "scale": 1.0},
+      {"time": 1.2, "x": 0, "y": 0, "rotation": 0, "scale": 1.0}
+    ]
+  }
+}

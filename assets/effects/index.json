@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "total": 6,
+  "effects": [
+    {
+      "id": "fire_aura",
+      "name": "Fire Aura",
+      "category": "Attack",
+      "file": "fire_aura.json",
+      "duration": 1.0,
+      "loop": true
+    },
+    {
+      "id": "lightning",
+      "name": "Lightning Strike",
+      "category": "Attack",
+      "file": "lightning.json",
+      "duration": 0.3,
+      "loop": false
+    },
+    {
+      "id": "dash_trail",
+      "name": "Dash Trail",
+      "category": "Movement",
+      "file": "dash_trail.json",
+      "duration": 0.5,
+      "loop": false
+    },
+    {
+      "id": "impact_burst",
+      "name": "Impact Burst",
+      "category": "Impact",
+      "file": "impact_burst.json",
+      "duration": 0.4,
+      "loop": false
+    },
+    {
+      "id": "smoke",
+      "name": "Smoke Cloud",
+      "category": "Environment",
+      "file": "smoke.json",
+      "duration": 2.0,
+      "loop": true
+    },
+    {
+      "id": "water_splash",
+      "name": "Water Splash",
+      "category": "Environment",
+      "file": "water_splash.json",
+      "duration": 0.6,
+      "loop": false
+    }
+  ],
+  "categories": {
+    "Attack": ["fire_aura", "lightning"],
+    "Movement": ["dash_trail"],
+    "Impact": ["impact_burst"],
+    "Environment": ["smoke", "water_splash"]
+  }
+}

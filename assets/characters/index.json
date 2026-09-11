@@ -1,0 +1,61 @@
+{
+  "version": "1.0",
+  "total": 5,
+  "characters": [
+    {
+      "id": "hero",
+      "name": "Hero",
+      "skinColor": "#DEB887",
+      "hairStyle": "Spike",
+      "hairColor": "#000000",
+      "eyeShape": "Sharp",
+      "eyeColor": "#2E6DB4",
+      "outfit": "Jacket",
+      "outfitColor": "#FF0000"
+    },
+    {
+      "id": "heroine",
+      "name": "Heroine",
+      "skinColor": "#F4A460",
+      "hairStyle": "Long",
+      "hairColor": "#8B008B",
+      "eyeShape": "Round",
+      "eyeColor": "#FF1493",
+      "outfit": "Dress",
+      "outfitColor": "#00FF00"
+    },
+    {
+      "id": "villain",
+      "name": "Villain",
+      "skinColor": "#696969",
+      "hairStyle": "Queue",
+      "hairColor": "#FFFFFF",
+      "eyeShape": "Cat",
+      "eyeColor": "#FF0000",
+      "outfit": "Cape",
+      "outfitColor": "#000000"
+    },
+    {
+      "id": "sidekick",
+      "name": "Sidekick",
+      "skinColor": "#FFD7B5",
+      "hairStyle": "Frange",
+      "hairColor": "#FF6347",
+      "eyeShape": "Round",
+      "eyeColor": "#228B22",
+      "outfit": "Tank",
+      "outfitColor": "#FFD700"
+    },
+    {
+      "id": "mage",
+      "name": "Mage",
+      "skinColor": "#E9B18E",
+      "hairStyle": "Afro",
+      "hairColor": "#FF8C00",
+      "eyeShape": "Wide",
+      "eyeColor": "#9370DB",
+      "outfit": "Robe",
+      "outfitColor": "#4B0082"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "idle",
+  "name": "Idle",
+  "category": "Movement",
+  "duration": 2.0,
+  "loop": true,
+  "tracks": {
+    "leg_left": [{"time": 0.0, "x": -10, "y": 100, "rotation": 0, "scale": 1.0}, {"time": 2.0, "x": -10, "y": 100, "rotation": 0, "scale": 1.0}],
+    "leg_right": [{"time": 0.0, "x": 10, "y": 100, "rotation": 0, "scale": 1.0}, {"time": 2.0, "x": 10, "y": 100, "rotation": 0, "scale": 1.0}],
+    "arm_left": [{"time": 0.0, "x": -30, "y": 60, "rotation": -10, "scale": 1.0}, {"time": 0.5, "x": -30, "y": 62, "rotation": -5, "scale": 1.0}, {"time": 1.0, "x": -30, "y": 60, "rotation": -10, "scale": 1.0}, {"time": 1.5, "x": -30, "y": 62, "rotation": -5, "scale": 1.0}, {"time": 2.0, "x": -30, "y": 60, "rotation": -10, "scale": 1.0}],
+    "arm_right": [{"time": 0.0, "x": 30, "y": 60, "rotation": 10, "scale": 1.0}, {"time": 0.5, "x": 30, "y": 62, "rotation": 15, "scale": 1.0}, {"time": 1.0, "x": 30, "y": 60, "rotation": 10, "scale": 1.0}, {"time": 1.5, "x": 30, "y": 62, "rotation": 15, "scale": 1.0}, {"time": 2.0, "x": 30, "y": 60, "rotation": 10, "scale": 1.0}],
+    "torso": [{"time": 0.0, "x": 0, "y": 50, "rotation": 0, "scale": 1.0}, {"time": 0.5, "x": 0, "y": 51, "rotation": 2, "scale": 1.0}, {"time": 1.0, "x": 0, "y": 50, "rotation": 0, "scale": 1.0}, {"time": 1.5, "x": 0, "y": 51, "rotation": 2, "scale": 1.0}, {"time": 2.0, "x": 0, "y": 50, "rotation": 0, "scale": 1.0}]
+  }
+}

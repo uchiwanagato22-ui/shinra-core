@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "total": 8,
+  "scenes": [
+    {
+      "id": "void",
+      "name": "Void",
+      "background": "color",
+      "bgColor": "#000000"
+    },
+    {
+      "id": "forest",
+      "name": "Forest",
+      "background": "gradient",
+      "bgColor1": "#228B22",
+      "bgColor2": "#90EE90"
+    },
+    {
+      "id": "rooftop",
+      "name": "Rooftop City",
+      "background": "gradient",
+      "bgColor1": "#87CEEB",
+      "bgColor2": "#FFB6C1"
+    },
+    {
+      "id": "dojo",
+      "name": "Dojo",
+      "background": "solid",
+      "bgColor": "#D2B48C"
+    },
+    {
+      "id": "sunset",
+      "name": "Sunset",
+      "background": "gradient",
+      "bgColor1": "#FF6347",
+      "bgColor2": "#FFD700"
+    },
+    {
+      "id": "beach",
+      "name": "Beach",
+      "background": "gradient",
+      "bgColor1": "#87CEEB",
+      "bgColor2": "#F4A460"
+    },
+    {
+      "id": "night",
+      "name": "Night Sky",
+      "background": "gradient",
+      "bgColor1": "#191970",
+      "bgColor2": "#4B0082"
+    },
+    {
+      "id": "volcano",
+      "name": "Volcano Crater",
+      "background": "gradient",
+      "bgColor1": "#FF4500",
+      "bgColor2": "#8B0000"
+    }
+  ]
+}

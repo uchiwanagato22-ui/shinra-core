@@ -1,0 +1,14 @@
+{
+  "id": "land",
+  "name": "Landing",
+  "category": "Movement",
+  "duration": 0.4,
+  "loop": false,
+  "tracks": {
+    "leg_left": [{"time": 0.0, "x": -15, "y": 60, "rotation": -80, "scale": 1.0}, {"time": 0.15, "x": -12, "y": 95, "rotation": -30, "scale": 1.0}, {"time": 0.3, "x": -10, "y": 102, "rotation": -5, "scale": 1.0}, {"time": 0.4, "x": -10, "y": 100, "rotation": 0, "scale": 1.0}],
+    "leg_right": [{"time": 0.0, "x": 15, "y": 60, "rotation": 80, "scale": 1.0}, {"time": 0.15, "x": 12, "y": 95, "rotation": 30, "scale": 1.0}, {"time": 0.3, "x": 10, "y": 102, "rotation": 5, "scale": 1.0}, {"time": 0.4, "x": 10, "y": 100, "rotation": 0, "scale": 1.0}],
+    "arm_left": [{"time": 0.0, "x": -45, "y": 30, "rotation": 160, "scale": 1.0}, {"time": 0.15, "x": -35, "y": 45, "rotation": 80, "scale": 1.0}, {"time": 0.3, "x": -30, "y": 58, "rotation": 20, "scale": 1.0}, {"time": 0.4, "x": -30, "y": 60, "rotation": -10, "scale": 1.0}],
+    "arm_right": [{"time": 0.0, "x": 45, "y": 30, "rotation": -160, "scale": 1.0}, {"time": 0.15, "x": 35, "y": 45, "rotation": -80, "scale": 1.0}, {"time": 0.3, "x": 30, "y": 58, "rotation": -20, "scale": 1.0}, {"time": 0.4, "x": 30, "y": 60, "rotation": 10, "scale": 1.0}],
+    "torso": [{"time": 0.0, "x": 0, "y": 30, "rotation": 80, "scale": 1.0}, {"time": 0.15, "x": 0, "y": 45, "rotation": 40, "scale": 1.0}, {"time": 0.3, "x": 0, "y": 48, "rotation": 10, "scale": 1.0}, {"time": 0.4, "x": 0, "y": 50, "rotation": 0, "scale": 1.0}]
+  }
+}

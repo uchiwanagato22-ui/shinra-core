@@ -1,0 +1,45 @@
+{
+  "id": "run",
+  "name": "Running",
+  "category": "Movement",
+  "duration": 0.6,
+  "loop": true,
+  "speed": 2.0,
+  "tracks": {
+    "leg_left": [
+      {"time": 0.0, "x": -15, "y": 105, "rotation": 20, "scale": 1.0},
+      {"time": 0.15, "x": -25, "y": 95, "rotation": 45, "scale": 1.0},
+      {"time": 0.3, "x": -15, "y": 105, "rotation": 20, "scale": 1.0},
+      {"time": 0.45, "x": -5, "y": 110, "rotation": -10, "scale": 1.0},
+      {"time": 0.6, "x": -15, "y": 105, "rotation": 20, "scale": 1.0}
+    ],
+    "leg_right": [
+      {"time": 0.0, "x": 15, "y": 110, "rotation": -10, "scale": 1.0},
+      {"time": 0.15, "x": 5, "y": 115, "rotation": -30, "scale": 1.0},
+      {"time": 0.3, "x": 15, "y": 110, "rotation": -10, "scale": 1.0},
+      {"time": 0.45, "x": 25, "y": 95, "rotation": 40, "scale": 1.0},
+      {"time": 0.6, "x": 15, "y": 110, "rotation": -10, "scale": 1.0}
+    ],
+    "arm_left": [
+      {"time": 0.0, "x": -30, "y": 55, "rotation": 40, "scale": 1.0},
+      {"time": 0.15, "x": -35, "y": 50, "rotation": 60, "scale": 1.0},
+      {"time": 0.3, "x": -30, "y": 55, "rotation": 40, "scale": 1.0},
+      {"time": 0.45, "x": -25, "y": 65, "rotation": 10, "scale": 1.0},
+      {"time": 0.6, "x": -30, "y": 55, "rotation": 40, "scale": 1.0}
+    ],
+    "arm_right": [
+      {"time": 0.0, "x": 30, "y": 65, "rotation": 10, "scale": 1.0},
+      {"time": 0.15, "x": 25, "y": 70, "rotation": -20, "scale": 1.0},
+      {"time": 0.3, "x": 30, "y": 65, "rotation": 10, "scale": 1.0},
+      {"time": 0.45, "x": 35, "y": 50, "rotation": 50, "scale": 1.0},
+      {"time": 0.6, "x": 30, "y": 65, "rotation": 10, "scale": 1.0}
+    ],
+    "torso": [
+      {"time": 0.0, "x": 0, "y": 48, "rotation": -5, "scale": 1.0},
+      {"time": 0.15, "x": 0, "y": 46, "rotation": 5, "scale": 1.0},
+      {"time": 0.3, "x": 0, "y": 48, "rotation": -5, "scale": 1.0},
+      {"time": 0.45, "x": 0, "y": 47, "rotation": 3, "scale": 1.0},
+      {"time": 0.6, "x": 0, "y": 48, "rotation": -5, "scale": 1.0}
+    ]
+  }
+}
