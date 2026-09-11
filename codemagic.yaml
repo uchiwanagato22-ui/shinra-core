@@ -1,0 +1,22 @@
+workflows:
+  android-workflow:
+    name: shinra core - Android
+    max_build_duration: 30
+    environment:
+      flutter: stable
+    scripts:
+      - name: Installer les dépendances
+        script: |
+          flutter pub get
+      - name: Build APK (release)
+        script: |
+          flutter build apk --release
+    artifacts:
+      - build/**/outputs/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - uchiwanagato22@gmail.com
+        notify:
+          success: true
+          failure: true
