@@ -9,6 +9,10 @@ enum PartType { body, face, hair, eyes, mouth, clothes, hand, shoes, accessory }
 
 enum AnimCategory { movement, combat, face, fx }
 
+/// Controls how motion arrives at an incoming pose.  This lets one clip mix
+/// calm dialogue, anticipation, and sharp anime impacts.
+enum KeyframeEasing { linear, smooth, easeIn, easeOut, impact }
+
 const skinPalette = [Color(0xFFE9B18E), Color(0xFFF6D3B0), Color(0xFFC98A5B), Color(0xFF8D5A3C), Color(0xFF5C3A28)];
 const hairPalette = [Color(0xFF151722), Color(0xFF3B2A1E), Color(0xFF8A4B2A), Color(0xFFC9A227), Color(0xFFB23A48), Color(0xFF4A6FE0), Color(0xFFE0E0E0)];
 const eyePalette = [Color(0xFF151722), Color(0xFF2E6DB4), Color(0xFF3E8E4F), Color(0xFF7C4DBE), Color(0xFFB23A48), Color(0xFFC9A227)];
@@ -17,7 +21,8 @@ const hairStyles = ['Court', 'Long', 'Spike', 'Queue', 'Chauve', 'Frange', 'Afro
 const eyeShapes = ['Round', 'Sharp', 'Sleepy', 'Wide', 'Cat'];
 /// Generic silhouettes only — no outfit is modeled after a specific franchise
 /// character, on purpose.
-const outfitStyles = ['Hoodie', 'Jacket', 'Robe', 'Dress', 'Tank', 'Armor', 'Cape'];
+const outfitStyles = ['Hoodie', 'Jacket', 'Robe', 'Dress', 'Tank', 'Armor', 'Cape', 'Suit', 'Tactical Vest', 'Battle Cloak'];
+const accessorySlots = ['glasses', 'headband', 'scarf', 'hat', 'gloves', 'belt'];
 const backgroundStyles = ['Void', 'Forest', 'Rooftop City', 'Rainy City', 'Neon Street', 'Dojo', 'Sunset Sky'];
 const weatherStyles = ['Clear', 'Rain', 'Snow'];
 const maxSceneActors = 6;
@@ -42,9 +47,15 @@ class SceneActor {
   String eyeShape = eyeShapes.first;
   String outfitStyle = outfitStyles.first;
   String expression = 'Neutral';
+  String mouthShape = 'Auto';
+  double eyeLookX = 0;
+  double eyeLookY = 0;
   bool accGlasses = false;
   bool accHeadband = false;
   bool accScarf = false;
+  bool accHat = false;
+  bool accGloves = false;
+  bool accBelt = false;
   List<Bone> bones = [for (final b in defaultBones()) b.copy()];
   List<CharacterPart> parts = [for (final p in defaultParts()) CharacterPart(id: p.id, name: p.name, type: p.type, boneId: p.boneId, visible: p.visible, crop: p.crop)];
 
@@ -59,9 +70,15 @@ class SceneActor {
     eyeShape = p.eyeShape;
     outfitStyle = p.outfitStyle;
     expression = p.expression;
+    mouthShape = p.mouthShape;
+    eyeLookX = p.eyeLookX;
+    eyeLookY = p.eyeLookY;
     accGlasses = p.accGlasses;
     accHeadband = p.accHeadband;
     accScarf = p.accScarf;
+    accHat = p.accHat;
+    accGloves = p.accGloves;
+    accBelt = p.accBelt;
     animationId = p.selectedAnimationId;
     bones = [for (final b in p.bones) b.copy()];
     parts = [for (final pt in p.parts) CharacterPart(id: pt.id, name: pt.name, type: pt.type, boneId: pt.boneId, visible: pt.visible, locked: pt.locked, x: pt.x, y: pt.y, rotation: pt.rotation, scale: pt.scale, crop: pt.crop)];
@@ -78,9 +95,15 @@ class SceneActor {
     p.eyeShape = eyeShape;
     p.outfitStyle = outfitStyle;
     p.expression = expression;
+    p.mouthShape = mouthShape;
+    p.eyeLookX = eyeLookX;
+    p.eyeLookY = eyeLookY;
     p.accGlasses = accGlasses;
     p.accHeadband = accHeadband;
     p.accScarf = accScarf;
+    p.accHat = accHat;
+    p.accGloves = accGloves;
+    p.accBelt = accBelt;
     if (p.animations.any((a) => a.id == animationId)) p.selectedAnimationId = animationId;
     for (final b in bones) {
       final target = p.bones.where((x) => x.id == b.id).firstOrNull;
@@ -127,12 +150,13 @@ class CharacterPart {
 }
 
 class PoseKeyframe {
-  PoseKeyframe({required this.time, required this.x, required this.y, required this.rotation, required this.scale});
+  PoseKeyframe({required this.time, required this.x, required this.y, required this.rotation, required this.scale, this.easing = KeyframeEasing.smooth});
   final double time;
   final double x;
   final double y;
   final double rotation;
   final double scale;
+  KeyframeEasing easing;
 }
 
 class BoneTrack {
@@ -256,10 +280,20 @@ class ProjectState extends ChangeNotifier {
   bool accGlasses = false;
   bool accHeadband = false;
   bool accScarf = false;
+  bool accHat = false;
+  bool accGloves = false;
+  bool accBelt = false;
   double playhead = 0;
   bool playing = false;
   String tool = 'select';
   String expression = 'Neutral';
+  /// Auto follows the selected expression; A/O/B are speech visemes that an
+  /// animator can key or switch while previewing dialogue.
+  String mouthShape = 'Auto';
+  /// Normalized look direction for procedural eyes (-1..1 on both axes).
+  /// It belongs to the selected character, so each actor can look elsewhere.
+  double eyeLookX = 0;
+  double eyeLookY = 0;
   String status = 'Ready';
   final List<Map<String, List<double>>> _undo = [];
   final List<Map<String, List<double>>> _redo = [];
@@ -369,8 +403,8 @@ class ProjectState extends ChangeNotifier {
   }
 
   List<AnimationClip> _presets() {
-    final movement = ['Idle', 'Walk', 'Run', 'Jump', 'Fall', 'Dodge Step', 'Dance', 'Bow', 'Celebrate'];
-    final combat = ['Attack Windup', 'Attack', 'Attack Recovery', 'Block', 'Hit Reaction', 'Counter', 'Combo Strike', 'Uppercut', 'Spin Attack', 'Air Kick', 'Grapple', 'Team Rush'];
+    final movement = ['Idle', 'Walk', 'Run', 'Jump', 'Fall', 'Dodge Step', 'Dance', 'Bow', 'Celebrate', 'Wave', 'Point'];
+    final combat = ['Attack Windup', 'Attack', 'Attack Recovery', 'Block', 'Hit Reaction', 'Counter', 'Combo Strike', 'Uppercut', 'Spin Attack', 'Air Kick', 'Grapple', 'Team Rush', 'Guard Stance'];
     final list = <AnimationClip>[];
     for (var i = 0; i < movement.length; i++) { final clip = AnimationClip(id: 'mv_${movement[i].toLowerCase().replaceAll(' ', '_')}', name: movement[i], category: AnimCategory.movement, duration: i == 0 ? 2 : 1.2, loop: i < 3); _generateDefaultMotion(clip); list.add(clip); }
     for (var i = 0; i < combat.length; i++) { final clip = AnimationClip(id: 'cb_${combat[i].toLowerCase().replaceAll(' ', '_')}', name: combat[i], category: AnimCategory.combat, duration: 0.9, loop: false); _generateDefaultMotion(clip); list.add(clip); }
@@ -466,6 +500,14 @@ class ProjectState extends ChangeNotifier {
         kf('arm_r', 0, dRot: 0); kf('arm_r', .25, dRot: 1.4); kf('arm_r', .5, dRot: .3); kf('arm_r', .75, dRot: 1.4); kf('arm_r', 1.0, dRot: 0);
         kf('root', 0, dy: 0); kf('root', .5, dy: -20); kf('root', 1.0, dy: 0);
         break;
+      case 'mv_wave':
+        kf('arm_r', 0, dRot: .2); kf('arm_r', .25, dRot: 1.3); kf('arm_r', .5, dRot: .9); kf('arm_r', .75, dRot: 1.35); kf('arm_r', 1.2, dRot: .2);
+        kf('hand_r', 0, dRot: 0); kf('hand_r', .25, dRot: .35); kf('hand_r', .5, dRot: -.35); kf('hand_r', .75, dRot: .35); kf('hand_r', 1.2, dRot: 0);
+        break;
+      case 'mv_point':
+        kf('arm_r', 0, dRot: .1); kf('arm_r', .3, dRot: 1.05); kf('arm_r', 1.0, dRot: 1.05);
+        kf('hand_r', 0, dRot: 0); kf('hand_r', .3, dRot: .15); kf('hand_r', 1.0, dRot: .15);
+        break;
       case 'cb_combo_strike':
         kf('arm_r', 0, dRot: 0); kf('arm_r', .15, dRot: -1.0); kf('arm_r', .35, dRot: 1.3); kf('arm_r', .55, dRot: -.8); kf('arm_r', .75, dRot: 1.1); kf('arm_r', .9, dRot: 0);
         kf('torso', 0, dRot: 0); kf('torso', .35, dRot: .25); kf('torso', .75, dRot: -.15); kf('torso', .9, dRot: 0);
@@ -498,6 +540,12 @@ class ProjectState extends ChangeNotifier {
         kf('leg_l', 0, dRot: -.4); kf('leg_l', .4, dRot: .5); kf('leg_l', .9, dRot: -.4);
         kf('leg_r', 0, dRot: .4); kf('leg_r', .4, dRot: -.5); kf('leg_r', .9, dRot: .4);
         break;
+      case 'cb_guard_stance':
+        kf('arm_l', 0, dRot: -.1); kf('arm_l', .2, dRot: -1.15); kf('arm_l', .9, dRot: -1.15);
+        kf('arm_r', 0, dRot: .1); kf('arm_r', .2, dRot: 1.15); kf('arm_r', .9, dRot: 1.15);
+        kf('hand_l', 0, dRot: 0); kf('hand_l', .2, dRot: -.15); kf('hand_l', .9, dRot: -.15);
+        kf('hand_r', 0, dRot: 0); kf('hand_r', .2, dRot: .15); kf('hand_r', .9, dRot: .15);
+        break;
     }
   }
 
@@ -518,7 +566,15 @@ class ProjectState extends ChangeNotifier {
     return r;
   }
   void setTool(String value) { tool = value; notifyListeners(); }
-  void setExpression(String value) { expression = value; notifyListeners(); }
+  void setExpression(String value) { expression = value; persistSelectedActor(); notifyListeners(); }
+  void setMouthShape(String value) { mouthShape = value; persistSelectedActor(); notifyListeners(); }
+  void setEyeDirection({double? x, double? y}) {
+    if (x != null) eyeLookX = x.clamp(-1, 1).toDouble();
+    if (y != null) eyeLookY = y.clamp(-1, 1).toDouble();
+    status = 'Eye direction updated';
+    persistSelectedActor();
+    notifyListeners();
+  }
   void setAppearance({Color? skin, Color? hair, Color? eyes, Color? clothes, String? style, String? eyeShape}) {
     if (skin != null) skinColor = skin;
     if (hair != null) hairColor = hair;
@@ -534,7 +590,7 @@ class ProjectState extends ChangeNotifier {
   void setOutfit(String v) { outfitStyle = v; notifyListeners(); }
   void setBackground(String v) { background = v; notifyListeners(); }
   void setAccessory(String name, bool v) {
-    switch (name) { case 'glasses': accGlasses = v; break; case 'headband': accHeadband = v; break; case 'scarf': accScarf = v; break; }
+    switch (name) { case 'glasses': accGlasses = v; break; case 'headband': accHeadband = v; break; case 'scarf': accScarf = v; break; case 'hat': accHat = v; break; case 'gloves': accGloves = v; break; case 'belt': accBelt = v; break; }
     notifyListeners();
   }
   void setPartCrop(String partId, Rect? crop) { parts.firstWhere((p) => p.id == partId).crop = crop; status = crop == null ? 'Region cleared' : 'Region mapped'; notifyListeners(); }
@@ -648,6 +704,28 @@ class ProjectState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Changes the curve on the key at the current playhead. We never create a
+  /// hidden key here: the animator must deliberately capture the pose first.
+  void setKeyframeEasing(KeyframeEasing easing) {
+    final track = selectedAnimation.track(selectedBoneId);
+    PoseKeyframe? key;
+    for (final candidate in track.keys) {
+      if ((candidate.time - playhead).abs() < .001) {
+        key = candidate;
+        break;
+      }
+    }
+    if (key == null) {
+      status = 'Add a keyframe first';
+      notifyListeners();
+      return;
+    }
+    key.easing = easing;
+    status = 'Motion curve: ${easing.name}';
+    persistSelectedActor();
+    notifyListeners();
+  }
+
   void captureAll() {
     for (final b in bones) selectedAnimation.track(b.id).upsert(PoseKeyframe(time: playhead, x: b.x, y: b.y, rotation: b.rotation, scale: b.scale));
     captureHistory();
@@ -683,7 +761,9 @@ class ProjectState extends ChangeNotifier {
       PoseKeyframe a = keys.first, c = keys.last;
       for (var i = 0; i < keys.length - 1; i++) { if (local >= keys[i].time && local <= keys[i + 1].time) { a = keys[i]; c = keys[i + 1]; break; } }
       final span = (c.time - a.time).abs();
-      final t = span < .0001 ? 0.0 : _ease(((local - a.time) / span).clamp(0, 1));
+      // The incoming key controls how the movement arrives. This creates
+      // readable anticipation and decisive impact without changing poses.
+      final t = span < .0001 ? 0.0 : _ease(((local - a.time) / span).clamp(0, 1), c.easing);
       b.x = _lerp(a.x, c.x, t); b.y = _lerp(a.y, c.y, t); b.rotation = _lerpAngle(a.rotation, c.rotation, t); b.scale = _lerp(a.scale, c.scale, t);
     }
   }
@@ -716,9 +796,23 @@ class ProjectState extends ChangeNotifier {
   void _apply(Bone b, PoseKeyframe k) { b.x = k.x; b.y = k.y; b.rotation = k.rotation; b.scale = k.scale; }
   double _lerp(double a, double b, double t) => a + (b - a) * t;
   double _lerpAngle(double a, double b, double t) { var d = (b - a + math.pi) % (2 * math.pi) - math.pi; return a + d * t; }
-  /// Smoothstep ease-in-out so poses accelerate/decelerate instead of moving
-  /// at a robotic constant speed between keyframes.
-  double _ease(double t) => t * t * (3 - 2 * t);
+  /// Dependency-free curves keep preview and export deterministic on every
+  /// platform.
+  double _ease(double t, KeyframeEasing easing) {
+    switch (easing) {
+      case KeyframeEasing.linear:
+        return t;
+      case KeyframeEasing.easeIn:
+        return t * t * t;
+      case KeyframeEasing.easeOut:
+        final inverse = 1 - t;
+        return 1 - inverse * inverse * inverse;
+      case KeyframeEasing.impact:
+        return t < .82 ? (t / .82) * .96 : .96 + ((t - .82) / .18) * .04;
+      case KeyframeEasing.smooth:
+        return t * t * (3 - 2 * t);
+    }
+  }
 
   void captureHistory() {
     final snapshot = {for (final b in bones) b.id: [b.x, b.y, b.rotation, b.scale]};

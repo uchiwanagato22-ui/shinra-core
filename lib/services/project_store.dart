@@ -16,6 +16,9 @@ class ProjectStore {
       'image': p.importedImagePath,
       'useImageAsBody': p.useImageAsBody,
       'expression': p.expression,
+      'mouthShape': p.mouthShape,
+      'eyeLookX': p.eyeLookX,
+      'eyeLookY': p.eyeLookY,
       'skin': p.skinColor.value,
       'hair': p.hairColor.value,
       'eyes': p.eyeColor.value,
@@ -27,6 +30,9 @@ class ProjectStore {
       'accGlasses': p.accGlasses,
       'accHeadband': p.accHeadband,
       'accScarf': p.accScarf,
+      'accHat': p.accHat,
+      'accGloves': p.accGloves,
+      'accBelt': p.accBelt,
       'selectedAnimationId': p.selectedAnimationId,
       'camera': [p.camera.x, p.camera.y, p.camera.zoom, p.camera.rotation],
       'parts': [for (final x in p.parts) {'id': x.id, 'bone': x.boneId, 'visible': x.visible, 'crop': x.crop == null ? null : [x.crop!.left, x.crop!.top, x.crop!.width, x.crop!.height]}],
@@ -37,7 +43,7 @@ class ProjectStore {
             'id': clip.id,
             'tracks': {
               for (final entry in clip.tracks.entries)
-                entry.key: [for (final k in entry.value.keys) [k.time, k.x, k.y, k.rotation, k.scale]],
+                entry.key: [for (final k in entry.value.keys) [k.time, k.x, k.y, k.rotation, k.scale, k.easing.index]],
             },
           },
       ],
@@ -57,6 +63,9 @@ class ProjectStore {
     p.importedImagePath = (d['image'] as String?) ?? '';
     p.useImageAsBody = (d['useImageAsBody'] as bool?) ?? false;
     p.expression = (d['expression'] as String?) ?? 'Neutral';
+    p.mouthShape = (d['mouthShape'] as String?) ?? 'Auto';
+    p.eyeLookX = ((d['eyeLookX'] as num?) ?? 0).toDouble().clamp(-1, 1).toDouble();
+    p.eyeLookY = ((d['eyeLookY'] as num?) ?? 0).toDouble().clamp(-1, 1).toDouble();
     if (d['skin'] != null) p.skinColor = Color(d['skin'] as int);
     if (d['hair'] != null) p.hairColor = Color(d['hair'] as int);
     if (d['eyes'] != null) p.eyeColor = Color(d['eyes'] as int);
@@ -68,6 +77,9 @@ class ProjectStore {
     p.accGlasses = (d['accGlasses'] as bool?) ?? false;
     p.accHeadband = (d['accHeadband'] as bool?) ?? false;
     p.accScarf = (d['accScarf'] as bool?) ?? false;
+    p.accHat = (d['accHat'] as bool?) ?? false;
+    p.accGloves = (d['accGloves'] as bool?) ?? false;
+    p.accBelt = (d['accBelt'] as bool?) ?? false;
     final cam = (d['camera'] as List?)?.cast<num>();
     if (cam != null && cam.length == 4) { p.camera.x = cam[0].toDouble(); p.camera.y = cam[1].toDouble(); p.camera.zoom = cam[2].toDouble(); p.camera.rotation = cam[3].toDouble(); }
     for (final item in (d['bones'] as List? ?? const [])) {
@@ -94,7 +106,14 @@ class ProjectStore {
         track.keys.clear();
         for (final raw in (entry.value as List)) {
           final k = (raw as List).cast<num>();
-          track.keys.add(PoseKeyframe(time: k[0].toDouble(), x: k[1].toDouble(), y: k[2].toDouble(), rotation: k[3].toDouble(), scale: k[4].toDouble()));
+          // Older saved projects have five values. New projects append the
+          // easing index, while old ones safely retain the classic smooth
+          // motion instead of failing to load.
+          final easingIndex = k.length > 5 ? k[5].toInt() : KeyframeEasing.smooth.index;
+          final easing = easingIndex >= 0 && easingIndex < KeyframeEasing.values.length
+              ? KeyframeEasing.values[easingIndex]
+              : KeyframeEasing.smooth;
+          track.keys.add(PoseKeyframe(time: k[0].toDouble(), x: k[1].toDouble(), y: k[2].toDouble(), rotation: k[3].toDouble(), scale: k[4].toDouble(), easing: easing));
         }
         track.keys.sort((a, b) => a.time.compareTo(b.time));
       }

@@ -250,24 +250,33 @@ class _CharacterPainter extends CustomPainter {
     _drawOutfit(canvas, torso, head, actor.outfitStyle, actor.clothesColor);
     canvas.drawOval(Rect.fromCenter(center: head, width: 88, height: 98), Paint()..color = actor.skinColor);
     _drawHair(canvas, head, actor.hairStyle, actor.hairColor);
-    _drawFace(canvas, head, actor, actor.expression);
-    _drawAccessories(canvas, head, actor);
+    _drawFace(canvas, head, actor, actor.expression, p.playhead);
+    final armLEnd = point(bones['arm_l']!) + Offset(math.sin(bones['arm_l']!.rotation + _worldRotation(bones['arm_l']!, bones)) * bones['arm_l']!.length * bones['arm_l']!.scale, -math.cos(bones['arm_l']!.rotation + _worldRotation(bones['arm_l']!, bones)) * bones['arm_l']!.length * bones['arm_l']!.scale);
+    final armREnd = point(bones['arm_r']!) + Offset(math.sin(bones['arm_r']!.rotation + _worldRotation(bones['arm_r']!, bones)) * bones['arm_r']!.length * bones['arm_r']!.scale, -math.cos(bones['arm_r']!.rotation + _worldRotation(bones['arm_r']!, bones)) * bones['arm_r']!.length * bones['arm_r']!.scale);
+    _drawAccessories(canvas, head, torso, armLEnd, armREnd, actor);
     final limbColor = Color.lerp(actor.skinColor, Colors.black, .25)!;
     limb(bones['arm_l']!, 24, limbColor);
     limb(bones['arm_r']!, 24, limbColor);
+    // Hands and feet are separate rig parts, not decoration. Drawing them
+    // from their own bones makes punches, pointing and planted steps read
+    // clearly when the animator keys hand_l/hand_r/foot_l/foot_r.
+    limb(bones['hand_l']!, 16, limbColor);
+    limb(bones['hand_r']!, 16, limbColor);
     limb(bones['leg_l']!, 30, actor.clothesColor);
     limb(bones['leg_r']!, 30, actor.clothesColor);
+    limb(bones['foot_l']!, 24, Color.lerp(actor.clothesColor, Colors.black, .35)!);
+    limb(bones['foot_r']!, 24, Color.lerp(actor.clothesColor, Colors.black, .35)!);
 
     if (showActorBones) {
       for (final b in actor.bones) {
         final a = point(b);
         final paint = Paint()
-          ..color = b.id == p.selectedBoneId ? const Color(0xFFFFA726) : const Color(0xFF65B7FF)
+          ..color = b.id == p.selectedBoneId ? const Color(0xFFD4A73B) : const Color(0xFF65B7FF)
           ..strokeWidth = b.id == p.selectedBoneId ? 5 : 3;
         canvas.drawCircle(a, b.id == p.selectedBoneId ? 7 : 4, paint);
         if (b.parentId != null) canvas.drawLine(point(bones[b.parentId]!), a, paint);
       }
-      canvas.drawCircle(point(root), 9, Paint()..style = PaintingStyle.stroke..strokeWidth = 2..color = const Color(0xFFFFA726));
+      canvas.drawCircle(point(root), 9, Paint()..style = PaintingStyle.stroke..strokeWidth = 2..color = const Color(0xFFD4A73B));
       _drawFx(canvas, torso, head, p);
     }
   }
@@ -334,9 +343,11 @@ class _CharacterPainter extends CustomPainter {
   /// Every expression actually changes the face (brows, eye shape, mouth
   /// curve) instead of only swapping a label ÔÇö previously only "Terrifying"
   /// did anything visible (red eyes), the rest were cosmetic no-ops.
-  void _drawFace(Canvas canvas, Offset head, SceneActor actor, String expression) {
+  void _drawFace(Canvas canvas, Offset head, SceneActor actor, String expression, double timeline) {
     double browAngle = 0, browLift = 0, mouthCurve = 0, eyeScale = 1;
     var mouthOpen = false;
+    var mouthWidth = 20.0;
+    var mouthHeight = 14.0;
     var asymmetric = false;
     switch (expression) {
       case 'Happy':
@@ -363,11 +374,28 @@ class _CharacterPainter extends CustomPainter {
       default:
         break; // Neutral: all defaults
     }
+    // Speech visemes can override the expression while a line is spoken.
+    // A = open jaw, O = rounded lips, B = closed lips.
+    switch (actor.mouthShape) {
+      case 'A':
+        mouthOpen = true; mouthWidth = 22; mouthHeight = 20;
+        break;
+      case 'O':
+        mouthOpen = true; mouthWidth = 12; mouthHeight = 19;
+        break;
+      case 'B':
+        mouthOpen = true; mouthWidth = 24; mouthHeight = 5;
+        break;
+    }
 
     final browPaint = Paint()
       ..color = actor.hairColor
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round;
+    // Two short deterministic blinks every few seconds add life without
+    // Random() flicker during repaint or affecting exported frames.
+    final blinkPhase = timeline % 3.6;
+    final blinking = blinkPhase > 3.15 && blinkPhase < 3.30;
     for (final side in [-1, 1]) {
       final cx = head.dx + side * 17;
       final cy = head.dy - 20 + browLift;
@@ -384,6 +412,11 @@ class _CharacterPainter extends CustomPainter {
     for (final side in [-1, 1]) {
       final ecx = head.dx + side * 17;
       final c = Offset(ecx, head.dy);
+      final pupil = c.translate(actor.eyeLookX * 2.5, actor.eyeLookY * 2.5);
+      if (blinking) {
+        canvas.drawLine(c.translate(-8, 0), c.translate(8, 0), Paint()..color = actor.hairColor..strokeWidth = 2.5..strokeCap = StrokeCap.round);
+        continue;
+      }
       switch (actor.eyeShape) {
         case 'Sharp':
           final path = Path()
@@ -391,17 +424,17 @@ class _CharacterPainter extends CustomPainter {
             ..quadraticBezierTo(c.dx, c.dy - 5 * eyeScale, c.dx + 9 * eyeScale, c.dy - 2 * eyeScale)
             ..quadraticBezierTo(c.dx, c.dy + 4 * eyeScale, c.dx - 9 * eyeScale, c.dy);
           canvas.drawPath(path, eyeWhite);
-          canvas.drawCircle(c.translate(1 * side, 0), 3 * eyeScale, eyeColor);
+          canvas.drawCircle(pupil.translate(1 * side, 0), 3 * eyeScale, eyeColor);
           break;
         case 'Sleepy':
           canvas.drawOval(Rect.fromCenter(center: c, width: 14 * eyeScale, height: 6 * eyeScale), eyeWhite);
-          canvas.drawCircle(c, 3 * eyeScale, eyeColor);
+          canvas.drawCircle(pupil, 3 * eyeScale, eyeColor);
           canvas.drawRect(Rect.fromLTWH(c.dx - 8 * eyeScale, c.dy - 6 * eyeScale, 16 * eyeScale, 4 * eyeScale), lidPaint);
           break;
         case 'Wide':
           canvas.drawCircle(c, 8 * eyeScale, eyeWhite);
-          canvas.drawCircle(c, 4.2 * eyeScale, eyeColor);
-          canvas.drawCircle(c.translate(-1.5, -1.5), 1.4 * eyeScale, Paint()..color = Colors.white);
+          canvas.drawCircle(pupil, 4.2 * eyeScale, eyeColor);
+          canvas.drawCircle(pupil.translate(-1.5, -1.5), 1.4 * eyeScale, Paint()..color = Colors.white);
           break;
         case 'Cat':
           final path = Path()
@@ -409,11 +442,11 @@ class _CharacterPainter extends CustomPainter {
             ..quadraticBezierTo(c.dx - 2 * eyeScale, c.dy - 6 * eyeScale, c.dx + 9 * eyeScale, c.dy - 3 * eyeScale)
             ..quadraticBezierTo(c.dx, c.dy + 5 * eyeScale, c.dx - 8 * eyeScale, c.dy + 3 * eyeScale);
           canvas.drawPath(path, eyeWhite);
-          canvas.drawOval(Rect.fromCenter(center: c, width: 3 * eyeScale, height: 6 * eyeScale), eyeColor);
+          canvas.drawOval(Rect.fromCenter(center: pupil, width: 3 * eyeScale, height: 6 * eyeScale), eyeColor);
           break;
         default: // Round
           canvas.drawCircle(c, 6 * eyeScale, eyeWhite);
-          canvas.drawCircle(c, 3 * eyeScale, eyeColor);
+          canvas.drawCircle(pupil, 3 * eyeScale, eyeColor);
       }
     }
 
@@ -424,8 +457,8 @@ class _CharacterPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     final mCenter = head.translate(asymmetric ? 3 : 0, 24);
     if (mouthOpen) {
-      canvas.drawOval(Rect.fromCenter(center: mCenter, width: 20, height: 14), Paint()..color = const Color(0xFF3A1414));
-      canvas.drawOval(Rect.fromCenter(center: mCenter, width: 20, height: 14), mouthPaint);
+      canvas.drawOval(Rect.fromCenter(center: mCenter, width: mouthWidth, height: mouthHeight), Paint()..color = const Color(0xFF3A1414));
+      canvas.drawOval(Rect.fromCenter(center: mCenter, width: mouthWidth, height: mouthHeight), mouthPaint);
     } else {
       final path = Path()
         ..moveTo(mCenter.dx - 9, mCenter.dy)
@@ -535,13 +568,39 @@ class _CharacterPainter extends CustomPainter {
           ..close();
         canvas.drawPath(cape, Paint()..color = Color.lerp(color, Colors.black, .3)!);
         break;
+      case 'Suit':
+        canvas.drawOval(Rect.fromCenter(center: torso, width: 104, height: 148), paint);
+        canvas.drawRect(Rect.fromCenter(center: torso.translate(0, -30), width: 14, height: 60), Paint()..color = Colors.white);
+        final lapel = Paint()..color = Color.lerp(color, Colors.black, .35)!;
+        canvas.drawLine(torso.translate(-4, -60), torso.translate(-22, -10), lapel..strokeWidth = 8);
+        canvas.drawLine(torso.translate(4, -60), torso.translate(22, -10), Paint()..color = Color.lerp(color, Colors.black, .35)!..strokeWidth = 8);
+        break;
+      case 'Tactical Vest':
+        canvas.drawOval(Rect.fromCenter(center: torso, width: 108, height: 146), paint);
+        final strap = Paint()..color = Color.lerp(color, Colors.black, .4)!;
+        for (final dx in [-24.0, 0.0, 24.0]) {
+          canvas.drawRect(Rect.fromCenter(center: torso.translate(dx, 0), width: 10, height: 110), strap);
+        }
+        canvas.drawRect(Rect.fromCenter(center: torso.translate(0, -50), width: 70, height: 10), strap);
+        break;
+      case 'Battle Cloak':
+        canvas.drawOval(Rect.fromCenter(center: torso, width: 100, height: 142), paint);
+        final cloak = Path()
+          ..moveTo(torso.dx - 26, torso.dy - 64)
+          ..lineTo(torso.dx + 26, torso.dy - 64)
+          ..lineTo(torso.dx + 60, torso.dy + 130)
+          ..quadraticBezierTo(torso.dx, torso.dy + 150, torso.dx - 60, torso.dy + 130)
+          ..close();
+        canvas.drawPath(cloak, Paint()..color = Color.lerp(color, Colors.black, .25)!);
+        canvas.drawCircle(torso.translate(0, -58), 6, Paint()..color = const Color(0xFFC9A227));
+        break;
       default: // Tank
         canvas.drawOval(Rect.fromCenter(center: torso, width: 92, height: 140), paint);
     }
   }
 
   /// Small procedural extras ÔÇö none tied to any specific character design.
-  void _drawAccessories(Canvas canvas, Offset head, SceneActor actor) {
+  void _drawAccessories(Canvas canvas, Offset head, Offset torso, Offset handL, Offset handR, SceneActor actor) {
     if (actor.accHeadband) {
       canvas.drawRect(Rect.fromCenter(center: head.translate(0, -26), width: 80, height: 12), Paint()..color = const Color(0xFF2C3448));
       canvas.drawCircle(head.translate(0, -26), 4, Paint()..color = const Color(0xFFB0B8C8));
@@ -558,6 +617,20 @@ class _CharacterPainter extends CustomPainter {
     if (actor.accScarf) {
       canvas.drawOval(Rect.fromCenter(center: head.translate(0, 46), width: 64, height: 26), Paint()..color = const Color(0xFF7C2431));
       canvas.drawRect(Rect.fromCenter(center: head.translate(14, 74), width: 16, height: 40), Paint()..color = const Color(0xFF7C2431));
+    }
+    if (actor.accHat) {
+      final hatColor = Paint()..color = Color.lerp(actor.clothesColor, Colors.black, .2)!;
+      canvas.drawOval(Rect.fromCenter(center: head.translate(0, -46), width: 76, height: 22), hatColor);
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center: head.translate(0, -60), width: 54, height: 30), const Radius.circular(8)), hatColor);
+    }
+    if (actor.accGloves) {
+      final gloveColor = Paint()..color = Color.lerp(actor.clothesColor, Colors.black, .3)!;
+      canvas.drawCircle(handL, 11, gloveColor);
+      canvas.drawCircle(handR, 11, gloveColor);
+    }
+    if (actor.accBelt) {
+      canvas.drawRect(Rect.fromCenter(center: torso.translate(0, 52), width: 96, height: 14), Paint()..color = const Color(0xFF2A1E14));
+      canvas.drawRect(Rect.fromCenter(center: torso.translate(0, 52), width: 16, height: 12), Paint()..color = const Color(0xFFC9A227));
     }
   }
 

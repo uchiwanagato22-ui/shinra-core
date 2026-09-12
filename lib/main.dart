@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'models/rig.dart';
@@ -16,11 +17,76 @@ import 'services/video_export.dart';
 import 'widgets/draw_canvas.dart';
 import 'widgets/viewport.dart';
 
+/// SHINRA CORE design tokens. A studio console for choreographing anime-style
+/// motion, not a dress-up toy — so the palette stays disciplined dark neutrals
+/// with exactly one bold accent (crimson, shared with the wider Shinra family)
+/// and a sparse gold for secondary emphasis, rather than a generated Material
+/// seed-color scheme.
+class Ink {
+  static const void_ = Color(0xFF0A0C12); // canvas / scaffold
+  static const panel = Color(0xFF12151F); // side panels, nav rail
+  static const surface = Color(0xFF181C29); // cards
+  static const surfaceRaised = Color(0xFF20263A); // hovered/active surface
+  static const line = Color(0x1FFFFFFF); // hairline borders
+  static const crimson = Color(0xFFE23349); // single bold accent — primary actions, active state
+  static const crimsonDim = Color(0xFF7A1B29);
+  static const gold = Color(0xFFD4A73B); // sparse secondary — markers, highlights
+  static const ink = Color(0xFFEDEAE3); // primary text
+  static const inkMuted = Color(0xFF8A8FA3); // secondary text
+}
+
 void main() => runApp(ChangeNotifierProvider(create: (_) => ProjectState(), child: const ShinraApp()));
 
 class ShinraApp extends StatelessWidget {
   const ShinraApp({super.key});
-  @override Widget build(BuildContext context) => MaterialApp(debugShowCheckedModeBanner: false, title: 'SHINRA CORE', theme: ThemeData(brightness: Brightness.dark, scaffoldBackgroundColor: const Color(0xFF07090E), colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFF6D00), brightness: Brightness.dark), useMaterial3: true), home: const Shell());
+  @override
+  Widget build(BuildContext context) {
+    final display = GoogleFonts.rajdhaniTextTheme();
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'SHINRA CORE',
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: Ink.void_,
+        useMaterial3: true,
+        colorScheme: const ColorScheme.dark(
+          surface: Ink.surface,
+          primary: Ink.crimson,
+          secondary: Ink.gold,
+          onSurface: Ink.ink,
+          error: Color(0xFFE85D5D),
+        ),
+        fontFamily: GoogleFonts.workSans().fontFamily,
+        textTheme: ThemeData.dark().textTheme.apply(bodyColor: Ink.ink, displayColor: Ink.ink).copyWith(
+              headlineSmall: display.headlineSmall?.copyWith(fontWeight: FontWeight.w700, letterSpacing: .2, color: Ink.ink),
+              titleLarge: display.titleLarge?.copyWith(fontWeight: FontWeight.w700, color: Ink.ink),
+              titleMedium: display.titleMedium?.copyWith(fontWeight: FontWeight.w600, color: Ink.ink),
+            ),
+        cardColor: Ink.surface,
+        dividerColor: Ink.line,
+        navigationRailTheme: NavigationRailThemeData(
+          backgroundColor: Ink.panel,
+          indicatorColor: Ink.crimson.withOpacity(.18),
+          selectedIconTheme: const IconThemeData(color: Ink.crimson),
+          unselectedIconTheme: IconThemeData(color: Ink.inkMuted),
+          selectedLabelTextStyle: const TextStyle(color: Ink.crimson, fontWeight: FontWeight.w600, fontSize: 11),
+          unselectedLabelTextStyle: TextStyle(color: Ink.inkMuted, fontSize: 11),
+        ),
+        filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: Ink.crimson, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
+        outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(foregroundColor: Ink.ink, side: const BorderSide(color: Ink.line), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
+        chipTheme: ChipThemeData(
+          backgroundColor: Ink.surface,
+          selectedColor: Ink.crimson.withOpacity(.22),
+          labelStyle: const TextStyle(color: Ink.ink, fontSize: 12),
+          side: const BorderSide(color: Ink.line),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        sliderTheme: const SliderThemeData(activeTrackColor: Ink.crimson, thumbColor: Ink.crimson, inactiveTrackColor: Ink.line),
+        switchTheme: SwitchThemeData(thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? Ink.crimson : Ink.inkMuted)),
+      ),
+      home: const Shell(),
+    );
+  }
 }
 
 enum Page { home, studio, scene, character, library, rig, animate, face, fx, camera, audio, ai, export }
@@ -48,10 +114,38 @@ class _ShellState extends State<Shell> {
   Widget _page(ProjectState p) { switch (page) { case Page.home: return HomePage(onOpen: (x) => setState(() => page = x)); case Page.studio: return StudioPage(p: p, onPlay: () => togglePlay(p)); case Page.scene: return ScenePage(p: p, onPlay: () => togglePlay(p)); case Page.character: return CharacterPage(p: p); case Page.library: return LibraryPage(p: p, onUse: () => setState(() => page = Page.animate)); case Page.rig: return RigPage(p: p); case Page.animate: return AnimatePage(p: p, onPlay: () => togglePlay(p)); case Page.face: return FacePage(p: p); case Page.fx: return FxPage(p: p); case Page.camera: return CameraPage(p: p); case Page.audio: return AudioPage(p: p); case Page.ai: return AiPage(p: p, onPlaySequence: (ids) => playQueue(p, ids)); case Page.export: return ExportPage(p: p); } }
 }
 
-class Top extends StatelessWidget { const Top({super.key, required this.title, this.subtitle}); final String title; final String? subtitle; @override Widget build(BuildContext c) => Padding(padding: const EdgeInsets.fromLTRB(24, 20, 24, 14), child: Row(children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: Theme.of(c).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)), if (subtitle != null) Text(subtitle!, style: TextStyle(color: Colors.white.withOpacity(.55))) ]), const Spacer(), const Text('SHINRA CORE', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.5, color: Color(0xFFFF8A00))) ])); }
-class CardBox extends StatelessWidget { const CardBox({super.key, required this.child, this.padding = const EdgeInsets.all(16)}); final Widget child; final EdgeInsets padding; @override Widget build(BuildContext c) => Container(padding: padding, decoration: BoxDecoration(color: const Color(0xFF10141E), borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white.withOpacity(.07))), child: child); }
+class Top extends StatelessWidget {
+  const Top({super.key, required this.title, this.subtitle});
+  final String title;
+  final String? subtitle;
+  @override
+  Widget build(BuildContext c) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 22, 24, 16),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(width: 4, height: subtitle != null ? 40 : 26, margin: const EdgeInsets.only(right: 12, top: 3), decoration: BoxDecoration(color: Ink.crimson, borderRadius: BorderRadius.circular(2))),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: Theme.of(c).textTheme.headlineSmall),
+              if (subtitle != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(subtitle!, style: const TextStyle(color: Ink.inkMuted, fontSize: 13))),
+            ]),
+          ),
+        ]),
+      );
+}
 
-class HomePage extends StatelessWidget { const HomePage({super.key, required this.onOpen}); final void Function(Page) onOpen; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'SHINRA CORE', subtitle: '2D anime animation workspace'), Expanded(child: GridView.count(crossAxisCount: 3, padding: const EdgeInsets.all(24), crossAxisSpacing: 16, mainAxisSpacing: 16, children: [for (final x in [(Page.studio, Icons.movie, 'Studio', 'Compose a scene'), (Page.scene, Icons.groups, 'Scene', '3-6 characters, city, combat'), (Page.character, Icons.person, 'Character', 'Build parts and import art'), (Page.rig, Icons.account_tree, 'Rig Studio', 'Bones and bindings'), (Page.animate, Icons.timeline, 'Animation Lab', 'Keyframes and playback'), (Page.face, Icons.face, 'Expressions', 'Anime facial acting'), (Page.fx, Icons.auto_awesome, 'FX', 'Impacts and particles'), (Page.camera, Icons.videocam, 'Camera', 'Shots and framing'), (Page.ai, Icons.smart_toy, 'AI Director', 'Turn direction into timeline')]) CardBox(child: InkWell(onTap: () => onOpen(x.$1), borderRadius: BorderRadius.circular(18), child: Padding(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(x.$2, size: 36, color: const Color(0xFFFF8A00)), const Spacer(), Text(x.$3, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text(x.$4, style: TextStyle(color: Colors.white.withOpacity(.55))) ]))))]) )]); }
+class CardBox extends StatelessWidget {
+  const CardBox({super.key, required this.child, this.padding = const EdgeInsets.all(16)});
+  final Widget child;
+  final EdgeInsets padding;
+  @override
+  Widget build(BuildContext c) => Container(
+        padding: padding,
+        decoration: BoxDecoration(color: Ink.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: Ink.line)),
+        child: child,
+      );
+}
+
+class HomePage extends StatelessWidget { const HomePage({super.key, required this.onOpen}); final void Function(Page) onOpen; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'SHINRA CORE', subtitle: '2D anime animation workspace'), Expanded(child: GridView.count(crossAxisCount: 3, padding: const EdgeInsets.all(24), crossAxisSpacing: 16, mainAxisSpacing: 16, children: [for (final x in [(Page.studio, Icons.movie, 'Studio', 'Compose a scene'), (Page.scene, Icons.groups, 'Scene', '3-6 characters, city, combat'), (Page.character, Icons.person, 'Character', 'Build parts and import art'), (Page.rig, Icons.account_tree, 'Rig Studio', 'Bones and bindings'), (Page.animate, Icons.timeline, 'Animation Lab', 'Keyframes and playback'), (Page.face, Icons.face, 'Expressions', 'Anime facial acting'), (Page.fx, Icons.auto_awesome, 'FX', 'Impacts and particles'), (Page.camera, Icons.videocam, 'Camera', 'Shots and framing'), (Page.ai, Icons.smart_toy, 'AI Director', 'Turn direction into timeline')]) CardBox(child: InkWell(onTap: () => onOpen(x.$1), borderRadius: BorderRadius.circular(18), child: Padding(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(x.$2, size: 36, color: const Color(0xFFE23349)), const Spacer(), Text(x.$3, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text(x.$4, style: TextStyle(color: Colors.white.withOpacity(.55))) ]))))]) )]); }
 
 class ScenePage extends StatefulWidget {
   const ScenePage({super.key, required this.p, required this.onPlay});
@@ -129,7 +223,50 @@ class _ScenePageState extends State<ScenePage> {
 }
 
 class StudioPage extends StatelessWidget { const StudioPage({super.key, required this.p, required this.onPlay}); final ProjectState p; final VoidCallback onPlay; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'Studio', subtitle: 'Scene viewport + timeline'), Expanded(child: Row(children: [Expanded(flex: 7, child: CardBox(child: Column(children: [Expanded(child: ShinraViewport(project: p)), const SizedBox(height: 10), _Transport(p: p, onPlay: onPlay)]))), const SizedBox(width: 14), SizedBox(width: 270, child: _Inspector(p: p))])),]); }
-class _Transport extends StatelessWidget { const _Transport({required this.p, required this.onPlay}); final ProjectState p; final VoidCallback onPlay; @override Widget build(BuildContext c) => Column(children: [Row(children: [IconButton(onPressed: p.undo, icon: const Icon(Icons.undo)), IconButton(onPressed: p.redo, icon: const Icon(Icons.redo)), IconButton(onPressed: () => p.setPlayhead(0), icon: const Icon(Icons.stop)), IconButton(onPressed: onPlay, icon: Icon(p.playing ? Icons.pause : Icons.play_arrow)), const SizedBox(width: 8), Text('${p.playhead.toStringAsFixed(2)} / ${p.selectedAnimation.duration.toStringAsFixed(2)}s'), const Spacer(), DropdownButton<String>(value: p.selectedAnimationId, items: [for (final a in p.animations) DropdownMenuItem(value: a.id, child: Text(a.name))], onChanged: (v) { if (v != null) { p.selectedAnimationId = v; p.setPlayhead(0); } })]), Slider(value: p.playhead, min: 0, max: p.selectedAnimation.duration, onChanged: p.setPlayhead)]); }
+class _KeyframeTimeline extends StatelessWidget {
+  const _KeyframeTimeline({required this.p, this.boneId});
+  final ProjectState p;
+  /// null = show every bone's keyframes on this timeline; a bone id = only
+  /// that bone's — useful when focused on posing one limb.
+  final String? boneId;
+
+  @override
+  Widget build(BuildContext c) {
+    final duration = p.selectedAnimation.duration <= 0 ? 1.0 : p.selectedAnimation.duration;
+    final times = <double>{};
+    if (boneId != null) {
+      for (final k in p.selectedAnimation.tracks[boneId]?.keys ?? const <PoseKeyframe>[]) times.add(k.time);
+    } else {
+      for (final track in p.selectedAnimation.tracks.values) {
+        for (final k in track.keys) times.add(k.time);
+      }
+    }
+    return LayoutBuilder(builder: (_, constraints) {
+      const inset = 12.0; // rough match for the Slider's thumb radius so markers line up with the track, not exact but close
+      final trackWidth = constraints.maxWidth - inset * 2;
+      return SizedBox(
+        height: 30,
+        child: Stack(clipBehavior: Clip.none, children: [
+          Positioned(top: 4, left: 0, right: 0, child: Slider(value: p.playhead, min: 0, max: duration, onChanged: p.setPlayhead)),
+          for (final t in times)
+            Positioned(
+              left: inset + (t / duration) * trackWidth - 5,
+              top: 0,
+              child: GestureDetector(
+                onTap: () => p.setPlayhead(t),
+                child: Transform.rotate(
+                  angle: .785398,
+                  child: Container(width: 10, height: 10, decoration: BoxDecoration(color: (t - p.playhead).abs() < .02 ? Ink.crimson : Ink.gold, border: Border.all(color: Ink.void_, width: 1.2))),
+                ),
+              ),
+            ),
+        ]),
+      );
+    });
+  }
+}
+
+class _Transport extends StatelessWidget { const _Transport({required this.p, required this.onPlay}); final ProjectState p; final VoidCallback onPlay; @override Widget build(BuildContext c) => Column(children: [Row(children: [IconButton(onPressed: p.undo, icon: const Icon(Icons.undo)), IconButton(onPressed: p.redo, icon: const Icon(Icons.redo)), IconButton(onPressed: () => p.setPlayhead(0), icon: const Icon(Icons.stop)), IconButton(onPressed: onPlay, icon: Icon(p.playing ? Icons.pause : Icons.play_arrow)), const SizedBox(width: 8), Text('${p.playhead.toStringAsFixed(2)} / ${p.selectedAnimation.duration.toStringAsFixed(2)}s'), const Spacer(), DropdownButton<String>(value: p.selectedAnimationId, items: [for (final a in p.animations) DropdownMenuItem(value: a.id, child: Text(a.name))], onChanged: (v) { if (v != null) { p.selectedAnimationId = v; p.setPlayhead(0); } })]), _KeyframeTimeline(p: p)]); }
 class _Inspector extends StatelessWidget { const _Inspector({required this.p}); final ProjectState p; @override Widget build(BuildContext c) => CardBox(child: ListView(children: [const Text('INSPECTOR', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1)), const SizedBox(height: 18), Text('Bone: ${p.selectedBone.name}'), const SizedBox(height: 10), _Num('X', p.selectedBone.x, (v) => p.setBone(x: v)), _Num('Y', p.selectedBone.y, (v) => p.setBone(y: v)), _Num('Rotation', p.selectedBone.rotation, (v) => p.setBone(rotation: v)), _Num('Scale', p.selectedBone.scale, (v) => p.setBone(scale: v)), const SizedBox(height: 14), FilledButton.icon(onPressed: p.captureKeyframe, icon: const Icon(Icons.key), label: const Text('Capture Keyframe')), OutlinedButton(onPressed: p.captureAll, child: const Text('Capture Full Pose')), const SizedBox(height: 10), Text(p.status, style: TextStyle(color: Colors.white.withOpacity(.5)))])); }
 class _Num extends StatelessWidget { const _Num(this.label, this.value, this.onChanged); final String label; final double value; final ValueChanged<double> onChanged; @override Widget build(BuildContext c) => Row(children: [SizedBox(width: 72, child: Text(label)), Expanded(child: Slider(value: value.clamp(-200, 200), min: -200, max: 200, onChanged: onChanged))]); }
 
@@ -295,6 +432,9 @@ class _CharacterPageState extends State<CharacterPage> {
                   FilterChip(label: const Text('Glasses'), selected: p.accGlasses, onSelected: (v) => p.setAccessory('glasses', v)),
                   FilterChip(label: const Text('Headband'), selected: p.accHeadband, onSelected: (v) => p.setAccessory('headband', v)),
                   FilterChip(label: const Text('Scarf'), selected: p.accScarf, onSelected: (v) => p.setAccessory('scarf', v)),
+                  FilterChip(label: const Text('Hat'), selected: p.accHat, onSelected: (v) => p.setAccessory('hat', v)),
+                  FilterChip(label: const Text('Gloves'), selected: p.accGloves, onSelected: (v) => p.setAccessory('gloves', v)),
+                  FilterChip(label: const Text('Belt'), selected: p.accBelt, onSelected: (v) => p.setAccessory('belt', v)),
                 ]),
                 const SizedBox(height: 12),
                 const Text('Scene / background', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
@@ -336,7 +476,7 @@ class _CharacterPageState extends State<CharacterPage> {
                   for (final part in p.parts)
                     ListTile(
                       dense: true,
-                      leading: Icon(part.crop != null ? Icons.check_box : Icons.check_box_outline_blank, color: part.crop != null ? const Color(0xFFFF8A00) : null),
+                      leading: Icon(part.crop != null ? Icons.check_box : Icons.check_box_outline_blank, color: part.crop != null ? const Color(0xFFE23349) : null),
                       title: Text(part.name),
                       subtitle: Text(part.crop == null ? 'No region mapped yet' : 'Region mapped'),
                       trailing: Wrap(spacing: 4, children: [
@@ -460,7 +600,22 @@ class AnimatePage extends StatelessWidget {
               OutlinedButton(onPressed: p.resetPose, child: const Text('Reset')),
             ]),
             const SizedBox(height: 8),
-            Slider(value: p.playhead, min: 0, max: p.selectedAnimation.duration, onChanged: p.setPlayhead),
+            _KeyframeTimeline(p: p, boneId: p.selectedBoneId),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                const Text('Motion curve', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                for (final easing in KeyframeEasing.values)
+                  ChoiceChip(
+                    label: Text(easing.name),
+                    selected: _easingAtPlayhead(p) == easing,
+                    onSelected: (_) => p.setKeyframeEasing(easing),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
             Row(children: [for (final b in p.bones.take(6)) Expanded(child: Text('${b.name}\n${p.selectedAnimation.tracks[b.id]?.keys.length ?? 0} keys', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)))]),
           ]),
         ),
@@ -468,7 +623,58 @@ class AnimatePage extends StatelessWidget {
       ]);
 }
 
-class FacePage extends StatelessWidget { const FacePage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'Expression Studio', subtitle: 'Anime facial acting presets'), Expanded(child: Row(children: [Expanded(child: CardBox(child: ShinraViewport(project: p, showBones: false))), SizedBox(width: 320, child: CardBox(child: ListView(children: [for (final e in ['Neutral', 'Happy', 'Angry', 'Sad', 'Surprised', 'Terrifying', 'Determined', 'Smirk']) Padding(padding: const EdgeInsets.only(bottom: 8), child: ChoiceChip(label: Text(e), selected: p.expression == e, onSelected: (_) => p.setExpression(e)))])))]))]); }
+KeyframeEasing? _easingAtPlayhead(ProjectState p) {
+  final track = p.selectedAnimation.tracks[p.selectedBoneId];
+  if (track == null) return null;
+  for (final key in track.keys) {
+    if ((key.time - p.playhead).abs() < .001) return key.easing;
+  }
+  return null;
+}
+
+class FacePage extends StatelessWidget {
+  const FacePage({super.key, required this.p});
+  final ProjectState p;
+
+  @override
+  Widget build(BuildContext c) => Column(children: [
+        const Top(title: 'Expression Studio', subtitle: 'Expressions, eye direction and natural blinking'),
+        Expanded(child: Row(children: [
+          Expanded(child: CardBox(child: ShinraViewport(project: p, showBones: false))),
+          SizedBox(
+            width: 320,
+            child: CardBox(
+              child: ListView(children: [
+                const Text('EXPRESSION', style: TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final e in ['Neutral', 'Happy', 'Angry', 'Sad', 'Surprised', 'Terrifying', 'Determined', 'Smirk'])
+                    ChoiceChip(label: Text(e), selected: p.expression == e, onSelected: (_) => p.setExpression(e)),
+                ]),
+                const Divider(height: 28),
+                const Text('EYE DIRECTION', style: TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                const Text('The eyes also blink naturally during playback.', style: TextStyle(fontSize: 11)),
+                Slider(value: p.eyeLookX, min: -1, max: 1, divisions: 8, label: p.eyeLookX.toStringAsFixed(1), onChanged: (v) => p.setEyeDirection(x: v)),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: const [Text('Left'), Text('Right')]),
+                Slider(value: p.eyeLookY, min: -1, max: 1, divisions: 8, label: p.eyeLookY.toStringAsFixed(1), onChanged: (v) => p.setEyeDirection(y: v)),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: const [Text('Up'), Text('Down')]),
+                Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: () => p.setEyeDirection(x: 0, y: 0), icon: const Icon(Icons.center_focus_strong), label: const Text('Center eyes'))),
+                const Divider(height: 28),
+                const Text('TALKING MOUTH', style: TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Wrap(spacing: 8, children: [
+                  for (final shape in ['Auto', 'A', 'O', 'B'])
+                    ChoiceChip(label: Text(shape), selected: p.mouthShape == shape, onSelected: (_) => p.setMouthShape(shape)),
+                ]),
+                const SizedBox(height: 4),
+                const Text('Use A, O and B as simple dialogue mouth poses; Auto follows the expression.', style: TextStyle(fontSize: 11)),
+              ]),
+            ),
+          ),
+        ])),
+      ]);
+}
 class FxPage extends StatelessWidget { const FxPage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => _ListTool(title: 'FX Studio', subtitle: 'Combat impacts and cinematic effects', items: ['Impact', 'Dust', 'Speed Lines', 'Energy Burst', 'Smoke', 'Spark', 'Camera Shake'], onAdd: p.addFx, entries: p.activeFx.map((e) => '${e.name}  •  ${e.time.toStringAsFixed(2)}s').toList()); }
 class AudioPage extends StatelessWidget { const AudioPage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => _ListTool(title: 'Audio', subtitle: 'Timeline cues for SFX and music', items: ['Impact SFX', 'Footsteps', 'Whoosh', 'Voice Cue', 'Music Start', 'Music Stop'], onAdd: p.addAudio, entries: p.activeAudio.map((e) => '${e.name}  •  ${e.time.toStringAsFixed(2)}s').toList()); }
 class _ListTool extends StatelessWidget { const _ListTool({required this.title, required this.subtitle, required this.items, required this.onAdd, required this.entries}); final String title, subtitle; final List<String> items, entries; final void Function(String) onAdd; @override Widget build(BuildContext c) => Column(children: [Top(title: title, subtitle: subtitle), Expanded(child: Row(children: [Expanded(child: CardBox(child: ListView(children: [for (final x in items) ListTile(leading: const Icon(Icons.add_circle_outline), title: Text(x), trailing: FilledButton(onPressed: () => onAdd(x), child: const Text('Add')))]))), SizedBox(width: 300, child: CardBox(child: ListView(children: [const Text('TIMELINE EVENTS', style: TextStyle(fontWeight: FontWeight.w800)), const SizedBox(height: 12), for (final x in entries) ListTile(title: Text(x))])))]))]); }
@@ -581,7 +787,7 @@ class _CropPickerDialogState extends State<_CropPickerDialog> {
               child: Stack(children: [
                 ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(File(widget.imagePath), width: boxSize, height: boxSize, fit: BoxFit.fill)),
                 if (rect != null)
-                  Positioned.fromRect(rect: rect!, child: Container(decoration: BoxDecoration(border: Border.all(color: const Color(0xFFFF8A00), width: 2), color: const Color(0xFFFF8A00).withOpacity(.15)))),
+                  Positioned.fromRect(rect: rect!, child: Container(decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE23349), width: 2), color: const Color(0xFFE23349).withOpacity(.15)))),
               ]),
             ),
           ),
@@ -624,7 +830,7 @@ class _LibraryPageState extends State<LibraryPage> with SingleTickerProviderStat
           onTap: onTap,
           borderRadius: BorderRadius.circular(14),
           child: Row(children: [
-            Icon(icon, color: const Color(0xFFFF8A00)),
+            Icon(icon, color: const Color(0xFFE23349)),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), Text(subtitle, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5)))])),
           ]),
