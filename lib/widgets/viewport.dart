@@ -5,28 +5,59 @@ import 'package:flutter/material.dart';
 import '../models/rig.dart';
 
 class ShinraViewport extends StatelessWidget {
-  const ShinraViewport({super.key, required this.project, this.showBones = true});
+  const ShinraViewport({super.key, required this.project, this.showBones = true, this.poseMode = false});
   final ProjectState project;
   final bool showBones;
+  /// When true, dragging on the canvas moves/rotates the selected bone
+  /// (project.poseTool: 'move'/'rotate'/'scale') instead of panning the
+  /// camera — lets someone actually pose a hand/foot/head before capturing
+  /// a keyframe, as an alternative to typing numbers in the Inspector.
+  /// Free pan/zoom is disabled while posing so the drag isn't ambiguous.
+  final bool poseMode;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (_, c) => InteractiveViewer(
           minScale: .35,
           maxScale: 3.5,
+          panEnabled: !poseMode,
+          scaleEnabled: !poseMode,
           child: Center(
             child: SizedBox(
               width: math.max(360, c.maxWidth - 30),
               height: math.max(420, c.maxHeight - 30),
-              child: Stack(children: [
-                CustomPaint(painter: _CharacterPainter(project, showBones), size: Size.infinite),
-                if (project.useImageAsBody && project.importedImagePath.isNotEmpty)
-                  _ImageBody(project: project),
-              ]),
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onPanUpdate: poseMode ? (d) => _dragBone(project, d.delta) : null,
+                child: Stack(children: [
+                  CustomPaint(painter: _CharacterPainter(project, showBones), size: Size.infinite),
+                  if (project.useImageAsBody && project.importedImagePath.isNotEmpty)
+                    _ImageBody(project: project),
+                ]),
+              ),
             ),
           ),
         ),
       );
+
+  void _dragBone(ProjectState p, Offset screenDelta) {
+    final bone = p.selectedBone;
+    if (p.poseTool == 'rotate') {
+      p.setBone(rotation: bone.rotation + screenDelta.dx * .012);
+      return;
+    }
+    if (p.poseTool == 'scale') {
+      p.setBone(scale: bone.scale + screenDelta.dy * -.006);
+      return;
+    }
+    final parentRot = p.worldRotationOf(bone.id);
+    final cos = math.cos(-parentRot), sin = math.sin(-parentRot);
+    final dx = screenDelta.dx / p.camera.zoom;
+    final dy = screenDelta.dy / p.camera.zoom;
+    final localDx = dx * cos - dy * sin;
+    final localDy = dx * sin + dy * cos;
+    p.setBone(x: bone.x + localDx, y: bone.y + localDy);
+  }
 }
 
 _World _worldTransform(Bone b, Map<String, Bone> bones) {

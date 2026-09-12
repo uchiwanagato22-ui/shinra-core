@@ -7,6 +7,8 @@ import 'models/rig.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'services/ai_director.dart';
+import 'services/image_edit_service.dart' as ie;
+import 'package:image/image.dart' as img;
 import 'services/audio_cue_service.dart';
 import 'services/gif_export.dart';
 import 'services/project_store.dart';
@@ -135,6 +137,25 @@ class CharacterPage extends StatefulWidget { const CharacterPage({super.key, req
 class _CharacterPageState extends State<CharacterPage> {
   final picker = ImagePicker();
   bool autoMapping = false;
+  bool imageEditing = false;
+
+  Future<void> _applyImageEdit(ProjectState p, img.Image Function(img.Image) transform) async {
+    setState(() => imageEditing = true);
+    try {
+      final source = await ie.ImageUploadService.loadImage(p.importedImagePath);
+      if (source == null) { p.status = 'Could not read image'; p.notifyListeners(); return; }
+      final edited = transform(source);
+      final path = await ie.ImageUploadService.saveImage(edited, 'edited');
+      p.importedImagePath = path;
+      p.status = 'Image edited';
+      p.notifyListeners();
+    } catch (err) {
+      p.status = 'Image edit failed: $err';
+      p.notifyListeners();
+    } finally {
+      if (mounted) setState(() => imageEditing = false);
+    }
+  }
 
   static const starterCharacters = ['female_adventurer', 'male_adventurer', 'female_person', 'male_person', 'zombie', 'robot'];
 
@@ -282,6 +303,20 @@ class _CharacterPageState extends State<CharacterPage> {
                 const Divider(height: 28),
                 const Text('PARTS', style: TextStyle(fontWeight: FontWeight.w800)),
                 for (final part in p.parts) ListTile(dense: true, leading: Icon(part.visible ? Icons.visibility : Icons.visibility_off), title: Text(part.name), subtitle: Text(part.boneId), onTap: () => p.togglePart(part.id)),
+                if (p.importedImagePath.isNotEmpty) ...[
+                  const Divider(height: 28),
+                  const Text('IMAGE TOOLS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Text('Applied directly to the imported/drawn artwork.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
+                  const SizedBox(height: 8),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    OutlinedButton.icon(onPressed: imageEditing ? null : () => _applyImageEdit(p, (i) => ie.ImageUploadService.removeBackground(i)), icon: const Icon(Icons.auto_fix_normal), label: const Text('Remove background')),
+                    OutlinedButton.icon(onPressed: imageEditing ? null : () => _applyImageEdit(p, (i) => ie.ImageUploadService.flipHorizontal(i)), icon: const Icon(Icons.flip), label: const Text('Flip')),
+                    OutlinedButton.icon(onPressed: imageEditing ? null : () => _applyImageEdit(p, (i) => ie.ImageUploadService.tint(i, p.clothesColor)), icon: const Icon(Icons.format_color_fill), label: const Text('Tint (clothes color)')),
+                    OutlinedButton.icon(onPressed: imageEditing ? null : () => _applyImageEdit(p, (i) => ie.ImageUploadService.adjustBrightness(i, 1.15)), icon: const Icon(Icons.brightness_6), label: const Text('Brighter')),
+                  ]),
+                  if (imageEditing) const Padding(padding: EdgeInsets.only(top: 8), child: LinearProgressIndicator()),
+                ],
                 if (p.useImageAsBody && p.importedImagePath.isNotEmpty) ...[
                   const Divider(height: 28),
                   const Text('IMAGE → PART MAPPING', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
@@ -319,7 +354,61 @@ class _CharacterPageState extends State<CharacterPage> {
   }
 }
 
-class RigPage extends StatelessWidget { const RigPage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'Rig Studio', subtitle: 'Bones, hierarchy and part binding'), Expanded(child: Row(children: [Expanded(child: CardBox(child: ShinraViewport(project: p))), SizedBox(width: 320, child: CardBox(child: ListView(children: [FilledButton.icon(onPressed: p.autoRig, icon: const Icon(Icons.refresh), label: const Text('Rebuild Auto-Rig')), const SizedBox(height: 16), const Text('SKELETON', style: TextStyle(fontWeight: FontWeight.w800)), for (final b in p.bones) ListTile(selected: b.id == p.selectedBoneId, leading: const Icon(Icons.circle, size: 10), title: Text(b.name), subtitle: Text(b.parentId == null ? 'Root' : '↳ ${b.parentId}'), onTap: () => p.selectBone(b.id)), const Divider(), const Text('PART BINDING', style: TextStyle(fontWeight: FontWeight.w800)), for (final part in p.parts) DropdownButtonFormField<String>(value: part.boneId, decoration: InputDecoration(labelText: part.name), items: [for (final b in p.bones) DropdownMenuItem(value: b.id, child: Text(b.name))], onChanged: (v) { if (v != null) p.bindPart(part.id, v); })])))]))]); }
+class RigPage extends StatefulWidget {
+  const RigPage({super.key, required this.p});
+  final ProjectState p;
+  @override
+  State<RigPage> createState() => _RigPageState();
+}
+
+class _RigPageState extends State<RigPage> {
+  bool poseMode = false;
+
+  @override
+  Widget build(BuildContext c) {
+    final p = widget.p;
+    return Column(children: [
+      const Top(title: 'Rig Studio', subtitle: 'Bones, hierarchy, part binding — and posing'),
+      Expanded(child: Row(children: [
+        Expanded(child: CardBox(child: Column(children: [
+          Row(children: [
+            FilterChip(label: const Text('Pose mode (drag to move)'), selected: poseMode, onSelected: (v) => setState(() => poseMode = v)),
+            const SizedBox(width: 8),
+            if (poseMode) ...[
+              ChoiceChip(label: const Text('Move'), selected: p.poseTool == 'move', onSelected: (_) => p.setPoseTool('move')),
+              const SizedBox(width: 6),
+              ChoiceChip(label: const Text('Rotate'), selected: p.poseTool == 'rotate', onSelected: (_) => p.setPoseTool('rotate')),
+              const SizedBox(width: 6),
+              ChoiceChip(label: const Text('Scale'), selected: p.poseTool == 'scale', onSelected: (_) => p.setPoseTool('scale')),
+            ],
+          ]),
+          const SizedBox(height: 8),
+          Expanded(child: ShinraViewport(project: p, poseMode: poseMode)),
+        ]))),
+        SizedBox(width: 320, child: CardBox(child: ListView(children: [
+          FilledButton.icon(onPressed: p.autoRig, icon: const Icon(Icons.refresh), label: const Text('Rebuild Auto-Rig')),
+          const SizedBox(height: 12),
+          Text('Bone: ${p.selectedBone.name}', style: const TextStyle(fontWeight: FontWeight.w700)),
+          _Num('X', p.selectedBone.x, (v) => p.setBone(x: v)),
+          _Num('Y', p.selectedBone.y, (v) => p.setBone(y: v)),
+          _Num('Rotation', p.selectedBone.rotation, (v) => p.setBone(rotation: v)),
+          _Num('Scale', p.selectedBone.scale, (v) => p.setBone(scale: v)),
+          Row(children: [
+            Expanded(child: FilledButton.icon(onPressed: p.captureKeyframe, icon: const Icon(Icons.key), label: const Text('Keyframe'))),
+            const SizedBox(width: 8),
+            Expanded(child: OutlinedButton(onPressed: p.captureAll, child: const Text('Full Pose'))),
+          ]),
+          const Divider(height: 24),
+          const Text('SKELETON', style: TextStyle(fontWeight: FontWeight.w800)),
+          for (final b in p.bones) ListTile(selected: b.id == p.selectedBoneId, leading: const Icon(Icons.circle, size: 10), title: Text(b.name), subtitle: Text(b.parentId == null ? 'Root' : '↳ ${b.parentId}'), onTap: () => p.selectBone(b.id)),
+          const Divider(),
+          const Text('PART BINDING', style: TextStyle(fontWeight: FontWeight.w800)),
+          for (final part in p.parts) DropdownButtonFormField<String>(value: part.boneId, decoration: InputDecoration(labelText: part.name), items: [for (final b in p.bones) DropdownMenuItem(value: b.id, child: Text(b.name))], onChanged: (v) { if (v != null) p.bindPart(part.id, v); }),
+        ]))),
+      ])),
+    ]);
+  }
+}
 
 class AnimatePage extends StatelessWidget {
   const AnimatePage({super.key, required this.p, required this.onPlay});
@@ -542,11 +631,29 @@ class _LibraryPageState extends State<LibraryPage> with SingleTickerProviderStat
         ),
       );
 
+  bool importing = false;
+
   @override
   Widget build(BuildContext c) {
     final p = widget.p;
     return Column(children: [
       const Top(title: 'Library', subtitle: 'Ready-made animations, expressions, FX and audio to reuse on any rig'),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: importing ? null : () async {
+              setState(() => importing = true);
+              await p.importLibraryAnimations();
+              if (mounted) setState(() => importing = false);
+            },
+            icon: importing ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.download_outlined),
+            label: Text(importing ? 'Importing…' : 'Import bundled JSON animations (hand-authored, more detailed)'),
+          ),
+        ),
+      ),
+      const SizedBox(height: 4),
       TabBar(controller: tab, isScrollable: true, tabs: const [Tab(text: 'Movement'), Tab(text: 'Combat'), Tab(text: 'Face'), Tab(text: 'FX & Audio')]),
       Expanded(
         child: Padding(

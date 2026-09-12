@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart' show Color, Rect;
 import '../services/image_segmentation.dart';
+import '../services/animation_import.dart';
 
 enum BoneType { root, head, torso, arm, hand, leg, foot }
 
@@ -501,6 +502,21 @@ class ProjectState extends ChangeNotifier {
   }
 
   void selectBone(String id) { selectedBoneId = id; notifyListeners(); }
+  String poseTool = 'move';
+  void setPoseTool(String t) { poseTool = t; notifyListeners(); }
+  double worldRotationOf(String boneId) {
+    var r = 0.0;
+    final byId = {for (final b in bones) b.id: b};
+    var id = byId[boneId]?.parentId;
+    var guard = 0;
+    while (id != null && guard++ < 20) {
+      final b = byId[id];
+      if (b == null) break;
+      r += b.rotation;
+      id = b.parentId;
+    }
+    return r;
+  }
   void setTool(String value) { tool = value; notifyListeners(); }
   void setExpression(String value) { expression = value; notifyListeners(); }
   void setAppearance({Color? skin, Color? hair, Color? eyes, Color? clothes, String? style, String? eyeShape}) {
@@ -559,6 +575,19 @@ class ProjectState extends ChangeNotifier {
   /// Lets the user build their own animation from scratch instead of being
   /// limited to the 12 built-in presets — key poses by hand at whatever
   /// duration the scene actually needs.
+  Future<int> importLibraryAnimations() async {
+    final result = await AnimationImport.loadAll();
+    var added = 0;
+    for (final clip in result.clips) {
+      if (animations.any((c) => c.id == clip.id)) continue; // already imported
+      animations.add(clip);
+      added++;
+    }
+    status = added == 0 ? 'No new bundled animations to import' : '$added bundled animation(s) imported${result.failed > 0 ? " (${result.failed} skipped)" : ""}';
+    notifyListeners();
+    return added;
+  }
+
   void createAnimation(String name, double duration, {bool loop = false}) {
     final id = 'custom_${DateTime.now().microsecondsSinceEpoch}';
     final clip = AnimationClip(id: id, name: name, category: AnimCategory.movement, duration: duration.clamp(0.2, 120), loop: loop);
