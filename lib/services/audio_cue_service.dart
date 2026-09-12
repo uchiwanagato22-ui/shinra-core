@@ -16,15 +16,16 @@ class AudioCueService {
   String _slug(String name) => name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_').replaceAll(RegExp(r'^_+|_+$'), '');
 
   Future<void> play(String cueName) async {
-    final path = 'audio/${_slug(cueName)}.mp3';
-    try {
-      await _player.stop();
-      await _player.play(AssetSource(path));
-    } catch (_) {
-      // No matching file bundled yet — silent no-op rather than a crash.
-      // ignore: avoid_print
-      print('[Shinra audio] no sound file for "$cueName" (looked for assets/$path)');
+    final slug = _slug(cueName);
+    await _player.stop();
+    for (final ext in ['mp3', 'wav', 'ogg']) {
+      try {
+        await _player.play(AssetSource('audio/$slug.$ext'));
+        return;
+      } catch (_) {}
     }
+    // ignore: avoid_print
+    print('[Shinra audio] no sound file for "$cueName" (looked for assets/audio/$slug.[mp3|wav|ogg])');
   }
 
   void dispose() => _player.dispose();

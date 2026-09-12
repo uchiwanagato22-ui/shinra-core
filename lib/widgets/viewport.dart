@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -55,7 +55,7 @@ class _World {
 
 /// Renders the uploaded artwork on the rig. If the user has mapped crop
 /// regions to individual parts (Character page), each region is sliced from
-/// the source image and drawn following its own bone — so arms/legs/head can
+/// the source image and drawn following its own bone ÔÇö so arms/legs/head can
 /// move independently. Otherwise the whole image follows the torso as one
 /// rigid block (basic fallback for a not-yet-segmented upload).
 class _ImageBody extends StatefulWidget {
@@ -136,7 +136,7 @@ class _ImagePartsPainter extends CustomPainter {
         drawPiece(part.crop!, part.boneId, part.scale);
       }
     } else {
-      // Fallback: no parts mapped yet — show the whole upload as a single
+      // Fallback: no parts mapped yet ÔÇö show the whole upload as a single
       // block following the torso, so there is still visible feedback.
       final w = _worldTransform(bones['torso'] ?? bones.values.first, bones);
       final destW = 180.0, destH = 220.0;
@@ -161,7 +161,8 @@ class _CharacterPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2 + p.camera.x, size.height / 2 + p.camera.y) + _shakeOffset(p);
-    _drawBackground(canvas, size, p.background);
+    _drawBackground(canvas, size, p.background, p.sceneBackgroundImagePath);
+    _drawWeather(canvas, size, p.weather, p.playhead);
     if (p.background == 'Void') {
       final grid = Paint()
         ..color = const Color(0xFF181C27)
@@ -173,7 +174,20 @@ class _CharacterPainter extends CustomPainter {
     canvas.translate(center.dx, center.dy);
     canvas.scale(p.camera.zoom);
     canvas.rotate(p.camera.rotation);
-    final bones = {for (final b in p.bones) b.id: b};
+    for (final actor in p.actors) {
+      final skipProc = actor.id == p.selectedActorId && actor.useImageAsBody && actor.importedImagePath.isNotEmpty;
+      if (skipProc) continue;
+      canvas.save();
+      canvas.translate(actor.offsetX, actor.offsetY);
+      canvas.scale(actor.facing, 1);
+      _paintActor(canvas, p, actor, showBones && actor.id == p.selectedActorId);
+      canvas.restore();
+    }
+    canvas.restore();
+  }
+
+  void _paintActor(Canvas canvas, ProjectState p, SceneActor actor, bool showActorBones) {
+    final bones = {for (final b in actor.bones) b.id: b};
     Offset point(Bone b) {
       var x = b.x, y = b.y;
       String? parent = b.parentId;
@@ -202,41 +216,33 @@ class _CharacterPainter extends CustomPainter {
     final root = bones['root']!;
     final torso = point(bones['torso']!);
     final head = point(bones['head']!);
+    _drawOutfit(canvas, torso, head, actor.outfitStyle, actor.clothesColor);
+    canvas.drawOval(Rect.fromCenter(center: head, width: 88, height: 98), Paint()..color = actor.skinColor);
+    _drawHair(canvas, head, actor.hairStyle, actor.hairColor);
+    _drawFace(canvas, head, actor, actor.expression);
+    _drawAccessories(canvas, head, actor);
+    final limbColor = Color.lerp(actor.skinColor, Colors.black, .25)!;
+    limb(bones['arm_l']!, 24, limbColor);
+    limb(bones['arm_r']!, 24, limbColor);
+    limb(bones['leg_l']!, 30, actor.clothesColor);
+    limb(bones['leg_r']!, 30, actor.clothesColor);
 
-    // Hide the procedural body when the user is animating their own uploaded artwork.
-    if (!(p.useImageAsBody && p.importedImagePath.isNotEmpty)) {
-      _drawOutfit(canvas, torso, head, p.outfitStyle, p.clothesColor);
-      canvas.drawOval(Rect.fromCenter(center: head, width: 88, height: 98), Paint()..color = p.skinColor);
-      _drawHair(canvas, head, p.hairStyle, p.hairColor);
-      _drawFace(canvas, head, p);
-      _drawAccessories(canvas, head, p);
-      final limbColor = Color.lerp(p.skinColor, Colors.black, .25)!;
-      limb(bones['arm_l']!, 24, limbColor);
-      limb(bones['arm_r']!, 24, limbColor);
-      limb(bones['leg_l']!, 30, p.clothesColor);
-      limb(bones['leg_r']!, 30, p.clothesColor);
-    }
-
-    if (showBones) {
-      for (final b in p.bones) {
+    if (showActorBones) {
+      for (final b in actor.bones) {
         final a = point(b);
         final paint = Paint()
           ..color = b.id == p.selectedBoneId ? const Color(0xFFFFA726) : const Color(0xFF65B7FF)
           ..strokeWidth = b.id == p.selectedBoneId ? 5 : 3;
         canvas.drawCircle(a, b.id == p.selectedBoneId ? 7 : 4, paint);
-        if (b.parentId != null) {
-          final par = bones[b.parentId]!;
-          canvas.drawLine(point(par), a, paint);
-        }
+        if (b.parentId != null) canvas.drawLine(point(bones[b.parentId]!), a, paint);
       }
+      canvas.drawCircle(point(root), 9, Paint()..style = PaintingStyle.stroke..strokeWidth = 2..color = const Color(0xFFFFA726));
+      _drawFx(canvas, torso, head, p);
     }
-    canvas.drawCircle(point(root), 9, Paint()..style = PaintingStyle.stroke..strokeWidth = 2..color = const Color(0xFFFFA726));
-    _drawFx(canvas, torso, head, p);
-    canvas.restore();
   }
 
   /// FX added on the timeline previously only sat in a list with a
-  /// timestamp — nothing ever appeared on screen. Each one now renders a
+  /// timestamp ÔÇö nothing ever appeared on screen. Each one now renders a
   /// real (procedural, no external asset needed) effect while the playhead
   /// is inside its trigger window.
   void _drawFx(Canvas canvas, Offset torso, Offset head, ProjectState p) {
@@ -248,8 +254,8 @@ class _CharacterPainter extends CustomPainter {
       switch (e.name) {
         case 'Impact':
           // Anime-style hit: a hard white flash on the first frames of the
-          // window (not just a growing ring) — the classic Naruto/DBS "big
-          // hit" beat — fading out fast.
+          // window (not just a growing ring) ÔÇö the classic Naruto/DBS "big
+          // hit" beat ÔÇö fading out fast.
           if (t < .18) canvas.drawRect(Rect.fromLTWH(-2000, -2000, 4000, 4000), Paint()..color = Colors.white.withOpacity((1 - t / .18) * .85));
           canvas.drawCircle(torso, 20 + t * 70, Paint()..color = Colors.white.withOpacity(fade * .8)..style = PaintingStyle.stroke..strokeWidth = 6 * fade + 1);
           canvas.drawCircle(torso, 8 + t * 30, Paint()..color = const Color(0xFFFFD34D).withOpacity(fade * .6));
@@ -287,7 +293,7 @@ class _CharacterPainter extends CustomPainter {
           }
           break;
         case 'Camera Shake':
-          // Rendered as a screen-space jitter applied to the whole scene —
+          // Rendered as a screen-space jitter applied to the whole scene ÔÇö
           // see the translate offset added before this canvas.save() block.
           break;
       }
@@ -295,13 +301,13 @@ class _CharacterPainter extends CustomPainter {
   }
 
   /// Every expression actually changes the face (brows, eye shape, mouth
-  /// curve) instead of only swapping a label — previously only "Terrifying"
+  /// curve) instead of only swapping a label ÔÇö previously only "Terrifying"
   /// did anything visible (red eyes), the rest were cosmetic no-ops.
-  void _drawFace(Canvas canvas, Offset head, ProjectState p) {
+  void _drawFace(Canvas canvas, Offset head, SceneActor actor, String expression) {
     double browAngle = 0, browLift = 0, mouthCurve = 0, eyeScale = 1;
     var mouthOpen = false;
     var asymmetric = false;
-    switch (p.expression) {
+    switch (expression) {
       case 'Happy':
         browLift = -3; mouthCurve = 11; eyeScale = .82;
         break;
@@ -328,7 +334,7 @@ class _CharacterPainter extends CustomPainter {
     }
 
     final browPaint = Paint()
-      ..color = p.hairColor
+      ..color = actor.hairColor
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round;
     for (final side in [-1, 1]) {
@@ -342,12 +348,12 @@ class _CharacterPainter extends CustomPainter {
     }
 
     final eyeWhite = Paint()..color = Colors.white;
-    final eyeColor = Paint()..color = p.expression == 'Terrifying' ? const Color(0xFFFF3030) : p.eyeColor;
-    final lidPaint = Paint()..color = p.skinColor;
+    final eyeColor = Paint()..color = expression == 'Terrifying' ? const Color(0xFFFF3030) : actor.eyeColor;
+    final lidPaint = Paint()..color = actor.skinColor;
     for (final side in [-1, 1]) {
       final ecx = head.dx + side * 17;
       final c = Offset(ecx, head.dy);
-      switch (p.eyeShape) {
+      switch (actor.eyeShape) {
         case 'Sharp':
           final path = Path()
             ..moveTo(c.dx - 9 * eyeScale, c.dy)
@@ -445,7 +451,7 @@ class _CharacterPainter extends CustomPainter {
     }
   }
 
-  /// Generic silhouette shapes for the torso — original outlines, not based
+  /// Generic silhouette shapes for the torso ÔÇö original outlines, not based
   /// on any specific franchise design.
   void _drawOutfit(Canvas canvas, Offset torso, Offset head, String style, Color color) {
     final paint = Paint()..color = color;
@@ -503,13 +509,13 @@ class _CharacterPainter extends CustomPainter {
     }
   }
 
-  /// Small procedural extras — none tied to any specific character design.
-  void _drawAccessories(Canvas canvas, Offset head, ProjectState p) {
-    if (p.accHeadband) {
+  /// Small procedural extras ÔÇö none tied to any specific character design.
+  void _drawAccessories(Canvas canvas, Offset head, SceneActor actor) {
+    if (actor.accHeadband) {
       canvas.drawRect(Rect.fromCenter(center: head.translate(0, -26), width: 80, height: 12), Paint()..color = const Color(0xFF2C3448));
       canvas.drawCircle(head.translate(0, -26), 4, Paint()..color = const Color(0xFFB0B8C8));
     }
-    if (p.accGlasses) {
+    if (actor.accGlasses) {
       final ring = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5
@@ -518,13 +524,14 @@ class _CharacterPainter extends CustomPainter {
       canvas.drawCircle(head.translate(17, 0), 10, ring);
       canvas.drawLine(head.translate(-7, 0), head.translate(7, 0), ring);
     }
-    if (p.accScarf) {
+    if (actor.accScarf) {
       canvas.drawOval(Rect.fromCenter(center: head.translate(0, 46), width: 64, height: 26), Paint()..color = const Color(0xFF7C2431));
       canvas.drawRect(Rect.fromCenter(center: head.translate(14, 74), width: 16, height: 40), Paint()..color = const Color(0xFF7C2431));
     }
   }
 
   double _worldRotation(Bone b, Map<String, Bone> bones) {
+    var r = b.rotation;
     var parent = b.parentId;
     var guard = 0;
     while (parent != null && guard++ < 20) {
@@ -540,13 +547,30 @@ class _CharacterPainter extends CustomPainter {
   bool shouldRepaint(covariant _CharacterPainter old) => true;
 }
 
-/// Deterministic (not random) jitter so repaints are stable frame to frame —
+/// Deterministic (not random) jitter so repaints are stable frame to frame ÔÇö
 /// driven by playhead time, not Random(), otherwise the shake would flicker
 /// inconsistently between rebuilds instead of reading as a camera shake.
-/// Simple generic flat-shape backdrops (gradients + a few silhouettes) —
+/// Simple generic flat-shape backdrops (gradients + a few silhouettes) ÔÇö
 /// original, not depicting any real or copyrighted place, just enough
 /// atmosphere so the viewport isn't always a plain void.
-void _drawBackground(Canvas canvas, Size size, String style) {
+void _drawWeather(Canvas canvas, Size size, String weather, double time) {
+  if (weather == 'Clear') return;
+  final paint = Paint()..strokeWidth = 1.5;
+  for (var i = 0; i < 80; i++) {
+    final seed = i * 17.0;
+    final x = (seed * 37 + time * 120) % size.width;
+    final y = (seed * 53 + time * 280) % size.height;
+    if (weather == 'Rain') {
+      paint.color = Colors.white.withOpacity(.35);
+      canvas.drawLine(Offset(x, y), Offset(x - 4, y + 14), paint);
+    } else {
+      paint.color = Colors.white.withOpacity(.55);
+      canvas.drawCircle(Offset(x, y), 2, paint);
+    }
+  }
+}
+
+void _drawBackground(Canvas canvas, Size size, String style, String customPath) {
   final rect = Offset.zero & size;
   switch (style) {
     case 'Forest':
@@ -560,9 +584,10 @@ void _drawBackground(Canvas canvas, Size size, String style) {
       }
       break;
     case 'Rooftop City':
-      canvas.drawRect(rect, Paint()..shader = ui.Gradient.linear(Offset(0, 0), Offset(0, size.height), [const Color(0xFF10131F), const Color(0xFF262B45)]));
+    case 'Rainy City':
+      canvas.drawRect(rect, Paint()..shader = ui.Gradient.linear(Offset(0, 0), Offset(0, size.height), style == 'Rainy City' ? [const Color(0xFF1A2233), const Color(0xFF2A3348)] : [const Color(0xFF10131F), const Color(0xFF262B45)]));
       final b = Paint()..color = const Color(0xFF0B0E17);
-      final win = Paint()..color = const Color(0xFFFFD98A).withOpacity(.5);
+      final win = Paint()..color = (style == 'Rainy City' ? const Color(0xFF8EB4FF) : const Color(0xFFFFD98A)).withOpacity(.45);
       for (var i = 0; i < 7; i++) {
         final w = 40.0 + (i % 3) * 14;
         final x = i * (size.width / 7);
@@ -571,6 +596,16 @@ void _drawBackground(Canvas canvas, Size size, String style) {
         for (var wy = size.height - h + 12; wy < size.height - 12; wy += 18) {
           for (var wx = x + 6; wx < x + w - 6; wx += 14) canvas.drawRect(Rect.fromLTWH(wx, wy, 6, 8), win);
         }
+      }
+      if (style == 'Rainy City') canvas.drawRect(Rect.fromLTWH(0, size.height - 36, size.width, 36), Paint()..color = const Color(0xFF1E2838).withOpacity(.7));
+      break;
+    case 'Neon Street':
+      canvas.drawRect(rect, Paint()..shader = ui.Gradient.linear(Offset(0, 0), Offset(0, size.height), [const Color(0xFF120818), const Color(0xFF2A1038)]));
+      final neon = [const Color(0xFFFF4FD8), const Color(0xFF4FD8FF), const Color(0xFF9DFF4F)];
+      for (var i = 0; i < 5; i++) {
+        final x = size.width * (i + .3) / 5;
+        canvas.drawRect(Rect.fromLTWH(x, size.height * .35, 8, size.height * .65), Paint()..color = neon[i % 3].withOpacity(.35));
+        canvas.drawCircle(Offset(x + 4, size.height * .3), 18, Paint()..color = neon[i % 3].withOpacity(.5));
       }
       break;
     case 'Dojo':

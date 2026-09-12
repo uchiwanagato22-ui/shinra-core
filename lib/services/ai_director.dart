@@ -38,14 +38,19 @@ class AiDirector {
     'cour': 'Run', 'run': 'Run', 'marche': 'Walk', 'walk': 'Walk',
     'saute': 'Jump', 'jump': 'Jump', 'tombe': 'Fall', 'fall': 'Fall',
     'esquive': 'Dodge Step', 'dodge': 'Dodge Step',
+    'danse': 'Dance', 'dance': 'Dance', 'célébr': 'Celebrate', 'celebr': 'Celebrate',
     'arrête': 'Idle', 'arrete': 'Idle', 'stop': 'Idle', 'idle': 'Idle',
   };
   static const _combatWords = {
     'frappe': 'Attack', 'attaque': 'Attack', 'attack': 'Attack', 'punch': 'Attack',
+    'combo': 'Combo Strike', 'uppercut': 'Uppercut', 'tourbillon': 'Spin Attack',
     'prépare': 'Attack Windup', 'prepare': 'Attack Windup', 'recule': 'Attack Recovery',
     'bloque': 'Block', 'block': 'Block', 'pare': 'Block',
     'touché': 'Hit Reaction', 'touche': 'Hit Reaction', 'hit': 'Hit Reaction',
-    'contre': 'Counter', 'riposte': 'Counter',
+    'contre': 'Counter', 'riposte': 'Counter', 'grapple': 'Grapple', 'rush': 'Team Rush',
+  };
+  static const _sceneWords = {
+    'pluie': 'Rain', 'rain': 'Rain', 'ville': 'Rainy City', 'city': 'Rooftop City', 'neon': 'Neon Street',
   };
 
   static List<DirectorAction> parse(String text, ProjectState p) {
@@ -71,6 +76,11 @@ class AiDirector {
     }
     for (final e in _fxWords.entries) {
       if (lower.contains(e.key)) actions.add(DirectorAction('fx', 'FX: ${e.value}', value: e.value));
+    }
+    for (final e in _sceneWords.entries) {
+      if (!lower.contains(e.key)) continue;
+      if (e.value == 'Rain') { p.setWeather('Rain'); actions.add(DirectorAction('expression', 'Weather: Rain', value: 'Rain')); }
+      else { p.setBackground(e.value); actions.add(DirectorAction('expression', 'Background: ${e.value}', value: e.value)); }
     }
 
     if (actions.where((a) => a.kind == 'clip').isEmpty) {

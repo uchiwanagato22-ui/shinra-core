@@ -1,6 +1,6 @@
 name: shinra_core
 publish_to: 'none'
-version: 1.0.0+26
+version: 1.0.0+28
 environment:
   sdk: '>=3.3.0 <4.0.0'
 dependencies:
@@ -13,6 +13,7 @@ dependencies:
   provider: ^6.1.5+1
   image: ^4.2.0
   audioplayers: ^6.1.0
+  ffmpeg_kit_flutter_new: ^4.6.0
 flutter:
   uses-material-design: true
   assets:
@@ -20,4 +21,7 @@ flutter:
     - assets/animations/
     - assets/expressions/
     - assets/effects/
+    - assets/effects/sprites/
     - assets/audio/
+    - assets/library/
+    - assets/starter_characters/

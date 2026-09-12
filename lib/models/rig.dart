@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart' show Color, Rect;
+import '../services/image_segmentation.dart';
 
 enum BoneType { root, head, torso, arm, hand, leg, foot }
 
@@ -16,7 +17,80 @@ const eyeShapes = ['Round', 'Sharp', 'Sleepy', 'Wide', 'Cat'];
 /// Generic silhouettes only — no outfit is modeled after a specific franchise
 /// character, on purpose.
 const outfitStyles = ['Hoodie', 'Jacket', 'Robe', 'Dress', 'Tank', 'Armor', 'Cape'];
-const backgroundStyles = ['Void', 'Forest', 'Rooftop City', 'Dojo', 'Sunset Sky'];
+const backgroundStyles = ['Void', 'Forest', 'Rooftop City', 'Rainy City', 'Neon Street', 'Dojo', 'Sunset Sky'];
+const weatherStyles = ['Clear', 'Rain', 'Snow'];
+const maxSceneActors = 6;
+
+/// One character placed in a multi-actor scene — each has its own pose,
+/// appearance, optional imported art, and animation clip.
+class SceneActor {
+  SceneActor({required this.id, required this.name, this.offsetX = 0, this.offsetY = 0, this.facing = 1});
+  final String id;
+  String name;
+  double offsetX;
+  double offsetY;
+  double facing;
+  String animationId = 'mv_idle';
+  String importedImagePath = '';
+  bool useImageAsBody = false;
+  Color skinColor = skinPalette.first;
+  Color hairColor = hairPalette.first;
+  Color eyeColor = eyePalette.first;
+  Color clothesColor = clothesPalette.first;
+  String hairStyle = hairStyles.first;
+  String eyeShape = eyeShapes.first;
+  String outfitStyle = outfitStyles.first;
+  String expression = 'Neutral';
+  bool accGlasses = false;
+  bool accHeadband = false;
+  bool accScarf = false;
+  List<Bone> bones = [for (final b in defaultBones()) b.copy()];
+  List<CharacterPart> parts = [for (final p in defaultParts()) CharacterPart(id: p.id, name: p.name, type: p.type, boneId: p.boneId, visible: p.visible, crop: p.crop)];
+
+  void captureFrom(ProjectState p) {
+    importedImagePath = p.importedImagePath;
+    useImageAsBody = p.useImageAsBody;
+    skinColor = p.skinColor;
+    hairColor = p.hairColor;
+    eyeColor = p.eyeColor;
+    clothesColor = p.clothesColor;
+    hairStyle = p.hairStyle;
+    eyeShape = p.eyeShape;
+    outfitStyle = p.outfitStyle;
+    expression = p.expression;
+    accGlasses = p.accGlasses;
+    accHeadband = p.accHeadband;
+    accScarf = p.accScarf;
+    animationId = p.selectedAnimationId;
+    bones = [for (final b in p.bones) b.copy()];
+    parts = [for (final pt in p.parts) CharacterPart(id: pt.id, name: pt.name, type: pt.type, boneId: pt.boneId, visible: pt.visible, locked: pt.locked, x: pt.x, y: pt.y, rotation: pt.rotation, scale: pt.scale, crop: pt.crop)];
+  }
+
+  void applyTo(ProjectState p) {
+    p.importedImagePath = importedImagePath;
+    p.useImageAsBody = useImageAsBody;
+    p.skinColor = skinColor;
+    p.hairColor = hairColor;
+    p.eyeColor = eyeColor;
+    p.clothesColor = clothesColor;
+    p.hairStyle = hairStyle;
+    p.eyeShape = eyeShape;
+    p.outfitStyle = outfitStyle;
+    p.expression = expression;
+    p.accGlasses = accGlasses;
+    p.accHeadband = accHeadband;
+    p.accScarf = accScarf;
+    if (p.animations.any((a) => a.id == animationId)) p.selectedAnimationId = animationId;
+    for (final b in bones) {
+      final target = p.bones.where((x) => x.id == b.id).firstOrNull;
+      if (target != null) { target.x = b.x; target.y = b.y; target.rotation = b.rotation; target.scale = b.scale; }
+    }
+    for (final pt in parts) {
+      final target = p.parts.where((x) => x.id == pt.id).firstOrNull;
+      if (target != null) { target.boneId = pt.boneId; target.visible = pt.visible; target.crop = pt.crop; }
+    }
+  }
+}
 
 class Bone {
   Bone({required this.id, required this.name, required this.type, this.parentId, this.x = 0, this.y = 0, this.rotation = 0, this.length = 60, this.scale = 1});
@@ -140,6 +214,8 @@ List<CharacterPart> defaultParts() => [
   CharacterPart(id: 'shoes_r', name: 'Shoe R', type: PartType.shoes, boneId: 'foot_r'),
 ];
 
+extension _IterableFirstOrNull<T> on Iterable<T> { T? get firstOrNull => isEmpty ? null : first; }
+
 class ProjectState extends ChangeNotifier {
   ProjectState() {
     bones = defaultBones();
@@ -147,6 +223,8 @@ class ProjectState extends ChangeNotifier {
     animations = _presets();
     selectedBoneId = 'root';
     selectedAnimationId = animations.first.id;
+    actors = [SceneActor(id: 'actor_1', name: 'Hero')];
+    selectedActorId = actors.first.id;
     captureHistory();
   }
 
@@ -169,6 +247,11 @@ class ProjectState extends ChangeNotifier {
   String eyeShape = eyeShapes.first;
   String outfitStyle = outfitStyles.first;
   String background = backgroundStyles.first;
+  String weather = weatherStyles.first;
+  String sceneBackgroundImagePath = '';
+  List<SceneActor> actors = [];
+  String selectedActorId = 'actor_1';
+  bool poseDragMode = false;
   bool accGlasses = false;
   bool accHeadband = false;
   bool accScarf = false;
@@ -182,10 +265,111 @@ class ProjectState extends ChangeNotifier {
 
   Bone get selectedBone => bones.firstWhere((b) => b.id == selectedBoneId, orElse: () => bones.first);
   AnimationClip get selectedAnimation => animations.firstWhere((a) => a.id == selectedAnimationId, orElse: () => animations.first);
+  SceneActor get selectedActor => actors.firstWhere((a) => a.id == selectedActorId, orElse: () => actors.first);
+
+  void persistSelectedActor() { if (actors.isEmpty) return; selectedActor.captureFrom(this); }
+
+  void _persistSelectedActor() => persistSelectedActor();
+
+  void selectActor(String id) {
+    if (id == selectedActorId) return;
+    _persistSelectedActor();
+    selectedActorId = id;
+    selectedActor.applyTo(this);
+    status = 'Editing ${selectedActor.name}';
+    notifyListeners();
+  }
+
+  void addActor({String? name, bool select = true}) {
+    if (actors.length >= maxSceneActors) { status = 'Max $maxSceneActors characters in scene'; notifyListeners(); return; }
+    _persistSelectedActor();
+    final n = actors.length + 1;
+    final actor = SceneActor(id: 'actor_$n', name: name ?? 'Character $n', offsetX: (n - 1) * 90.0 - 90);
+    actors.add(actor);
+    if (select) selectActor(actor.id);
+    status = '${actor.name} added to scene';
+    if (!select) notifyListeners();
+  }
+
+  void removeActor(String id) {
+    if (actors.length <= 1) return;
+    _persistSelectedActor();
+    actors.removeWhere((a) => a.id == id);
+    if (!actors.any((a) => a.id == selectedActorId)) selectedActorId = actors.first.id;
+    selectedActor.applyTo(this);
+    status = 'Character removed';
+    notifyListeners();
+  }
+
+  void setActorOffset(String id, {double? x, double? y, double? facing}) {
+    final actor = actors.firstWhere((a) => a.id == id);
+    if (x != null) actor.offsetX = x;
+    if (y != null) actor.offsetY = y;
+    if (facing != null) actor.facing = facing >= 0 ? 1 : -1;
+    notifyListeners();
+  }
+
+  void setActorAnimation(String id, String animationId) {
+    actors.firstWhere((a) => a.id == id).animationId = animationId;
+    if (id == selectedActorId && animations.any((a) => a.id == animationId)) selectedAnimationId = animationId;
+    notifyListeners();
+  }
+
+  void setWeather(String v) { weather = v; notifyListeners(); }
+
+  void applyScenePreset(String preset) {
+    _persistSelectedActor();
+    switch (preset) {
+      case 'walk_dance_rain':
+        background = 'Rainy City';
+        weather = 'Rain';
+        while (actors.length < 2) addActor(name: actors.length == 1 ? 'Dancer' : null, select: false);
+        actors[0].name = 'Walker'; actors[0].offsetX = -70; actors[0].animationId = 'mv_walk';
+        actors[1].name = 'Dancer'; actors[1].offsetX = 70; actors[1].animationId = 'mv_dance';
+        selectActor(actors.first.id);
+        status = 'Scene: walk + dance in rainy city';
+        break;
+      case 'triple_combat':
+        background = 'Dojo';
+        weather = 'Clear';
+        while (actors.length < 3) addActor(select: false);
+        for (var i = 0; i < 3; i++) {
+          actors[i].offsetX = (i - 1) * 100.0;
+          actors[i].animationId = i == 1 ? 'cb_attack' : 'cb_block';
+          actors[i].name = 'Fighter ${i + 1}';
+        }
+        selectActor(actors.first.id);
+        status = 'Scene: 3-fighter combat lineup';
+        break;
+      case 'six_battle':
+        background = 'Neon Street';
+        weather = 'Rain';
+        while (actors.length < 6) addActor(select: false);
+        for (var i = 0; i < 6; i++) {
+          actors[i].offsetX = (i % 3 - 1) * 110.0;
+          actors[i].offsetY = (i ~/ 3) * 40.0 - 20;
+          actors[i].animationId = i.isEven ? 'cb_combo_strike' : 'cb_block';
+          actors[i].name = 'Fighter ${i + 1}';
+        }
+        selectActor(actors.first.id);
+        status = 'Scene: 6-character battle royale';
+        break;
+      case 'city_stroll':
+        background = 'Rooftop City';
+        weather = 'Clear';
+        while (actors.length < 2) addActor(select: false);
+        actors[0].offsetX = -50; actors[0].animationId = 'mv_walk';
+        actors[1].offsetX = 50; actors[1].animationId = 'mv_walk';
+        selectActor(actors.first.id);
+        status = 'Scene: duo city walk';
+        break;
+    }
+    notifyListeners();
+  }
 
   List<AnimationClip> _presets() {
-    final movement = ['Idle', 'Walk', 'Run', 'Jump', 'Fall', 'Dodge Step'];
-    final combat = ['Attack Windup', 'Attack', 'Attack Recovery', 'Block', 'Hit Reaction', 'Counter'];
+    final movement = ['Idle', 'Walk', 'Run', 'Jump', 'Fall', 'Dodge Step', 'Dance', 'Bow', 'Celebrate'];
+    final combat = ['Attack Windup', 'Attack', 'Attack Recovery', 'Block', 'Hit Reaction', 'Counter', 'Combo Strike', 'Uppercut', 'Spin Attack', 'Air Kick', 'Grapple', 'Team Rush'];
     final list = <AnimationClip>[];
     for (var i = 0; i < movement.length; i++) { final clip = AnimationClip(id: 'mv_${movement[i].toLowerCase().replaceAll(' ', '_')}', name: movement[i], category: AnimCategory.movement, duration: i == 0 ? 2 : 1.2, loop: i < 3); _generateDefaultMotion(clip); list.add(clip); }
     for (var i = 0; i < combat.length; i++) { final clip = AnimationClip(id: 'cb_${combat[i].toLowerCase().replaceAll(' ', '_')}', name: combat[i], category: AnimCategory.combat, duration: 0.9, loop: false); _generateDefaultMotion(clip); list.add(clip); }
@@ -265,6 +449,54 @@ class ProjectState extends ChangeNotifier {
         kf('torso', 0, dRot: .2); kf('torso', .3, dRot: -.2); kf('torso', .6, dRot: 0);
         kf('arm_l', 0, dRot: .3); kf('arm_l', .3, dRot: -.9); kf('arm_l', .6, dRot: 0);
         break;
+      case 'mv_dance':
+        kf('torso', 0, dy: 0, dRot: 0); kf('torso', .3, dy: -8, dRot: .12); kf('torso', .6, dy: 0, dRot: -.12); kf('torso', .9, dy: -8, dRot: .12); kf('torso', 1.2, dy: 0, dRot: 0);
+        kf('arm_l', 0, dRot: -.3); kf('arm_l', .3, dRot: -1.1); kf('arm_l', .6, dRot: .2); kf('arm_l', .9, dRot: -1.1); kf('arm_l', 1.2, dRot: -.3);
+        kf('arm_r', 0, dRot: .3); kf('arm_r', .3, dRot: 1.1); kf('arm_r', .6, dRot: -.2); kf('arm_r', .9, dRot: 1.1); kf('arm_r', 1.2, dRot: .3);
+        kf('leg_l', 0, dRot: -.2); kf('leg_l', .6, dRot: .35); kf('leg_l', 1.2, dRot: -.2);
+        kf('leg_r', 0, dRot: .2); kf('leg_r', .6, dRot: -.35); kf('leg_r', 1.2, dRot: .2);
+        break;
+      case 'mv_bow':
+        kf('torso', 0, dRot: 0); kf('torso', .4, dRot: .45); kf('torso', .9, dRot: 0);
+        kf('head', 0, dRot: 0); kf('head', .4, dRot: .25); kf('head', .9, dRot: 0);
+        break;
+      case 'mv_celebrate':
+        kf('arm_l', 0, dRot: 0); kf('arm_l', .25, dRot: -1.4); kf('arm_l', .5, dRot: -.3); kf('arm_l', .75, dRot: -1.4); kf('arm_l', 1.0, dRot: 0);
+        kf('arm_r', 0, dRot: 0); kf('arm_r', .25, dRot: 1.4); kf('arm_r', .5, dRot: .3); kf('arm_r', .75, dRot: 1.4); kf('arm_r', 1.0, dRot: 0);
+        kf('root', 0, dy: 0); kf('root', .5, dy: -20); kf('root', 1.0, dy: 0);
+        break;
+      case 'cb_combo_strike':
+        kf('arm_r', 0, dRot: 0); kf('arm_r', .15, dRot: -1.0); kf('arm_r', .35, dRot: 1.3); kf('arm_r', .55, dRot: -.8); kf('arm_r', .75, dRot: 1.1); kf('arm_r', .9, dRot: 0);
+        kf('torso', 0, dRot: 0); kf('torso', .35, dRot: .25); kf('torso', .75, dRot: -.15); kf('torso', .9, dRot: 0);
+        kf('leg_l', 0, dRot: 0); kf('leg_l', .35, dRot: .4); kf('leg_l', .9, dRot: 0);
+        break;
+      case 'cb_uppercut':
+        kf('arm_r', 0, dRot: .5); kf('arm_r', .2, dRot: -1.6); kf('arm_r', .45, dRot: 1.8); kf('arm_r', .9, dRot: 0);
+        kf('root', 0, dy: 0); kf('root', .2, dy: 8); kf('root', .45, dy: -25); kf('root', .9, dy: 0);
+        kf('torso', 0, dRot: 0); kf('torso', .45, dRot: -.2); kf('torso', .9, dRot: 0);
+        break;
+      case 'cb_spin_attack':
+        kf('root', 0, dx: 0); kf('root', .45, dx: 0);
+        kf('torso', 0, dRot: 0); kf('torso', .25, dRot: 1.2); kf('torso', .5, dRot: 2.4); kf('torso', .75, dRot: 3.6); kf('torso', .9, dRot: 0);
+        kf('arm_l', 0, dRot: 0); kf('arm_l', .45, dRot: 1.0); kf('arm_l', .9, dRot: 0);
+        kf('arm_r', 0, dRot: 0); kf('arm_r', .45, dRot: -1.0); kf('arm_r', .9, dRot: 0);
+        break;
+      case 'cb_air_kick':
+        kf('root', 0, dy: 0); kf('root', .25, dy: -35); kf('root', .6, dy: -35); kf('root', .9, dy: 0);
+        kf('leg_r', 0, dRot: 0); kf('leg_r', .25, dRot: -.9); kf('leg_r', .45, dRot: 1.4); kf('leg_r', .9, dRot: 0);
+        kf('arm_l', 0, dRot: 0); kf('arm_l', .45, dRot: -.7); kf('arm_l', .9, dRot: 0);
+        break;
+      case 'cb_grapple':
+        kf('arm_l', 0, dRot: 0); kf('arm_l', .3, dRot: -.9); kf('arm_l', .6, dRot: -.9); kf('arm_l', .9, dRot: 0);
+        kf('arm_r', 0, dRot: 0); kf('arm_r', .3, dRot: .9); kf('arm_r', .6, dRot: .9); kf('arm_r', .9, dRot: 0);
+        kf('torso', 0, dy: 0); kf('torso', .3, dy: 10); kf('torso', .6, dy: 10); kf('torso', .9, dy: 0);
+        break;
+      case 'cb_team_rush':
+        kf('root', 0, dx: 0); kf('root', .4, dx: 60); kf('root', .9, dx: 0);
+        kf('arm_r', 0, dRot: 0); kf('arm_r', .2, dRot: -1.0); kf('arm_r', .4, dRot: 1.2); kf('arm_r', .9, dRot: 0);
+        kf('leg_l', 0, dRot: -.4); kf('leg_l', .4, dRot: .5); kf('leg_l', .9, dRot: -.4);
+        kf('leg_r', 0, dRot: .4); kf('leg_r', .4, dRot: -.5); kf('leg_r', .9, dRot: .4);
+        break;
     }
   }
 
@@ -279,6 +511,7 @@ class ProjectState extends ChangeNotifier {
     if (style != null) hairStyle = style;
     if (eyeShape != null) this.eyeShape = eyeShape;
     status = 'Appearance updated';
+    persistSelectedActor();
     notifyListeners();
   }
   void toggleUseImageAsBody(bool value) { useImageAsBody = value; status = value ? 'Using uploaded image as body' : 'Using drawn character'; notifyListeners(); }
@@ -291,25 +524,35 @@ class ProjectState extends ChangeNotifier {
   void setPartCrop(String partId, Rect? crop) { parts.firstWhere((p) => p.id == partId).crop = crop; status = crop == null ? 'Region cleared' : 'Region mapped'; notifyListeners(); }
   bool get hasAnyPartCrop => parts.any((p) => p.crop != null);
 
-  /// Rough starting guess based on standard standing-figure proportions —
-  /// NOT real detection (no ML model available here). Meant to save time
-  /// versus drawing every rectangle from a blank image; the user is expected
-  /// to nudge each region afterwards via "Set region".
-  void autoMapImageParts() {
+  /// Rough starting guess based on standard standing-figure proportions,
+  /// refined with real edge-detection for the head/torso/legs boundaries
+  /// (see ImageSegmentation) — NOT full ML detection (no model available
+  /// here), and left/right splits + hands/feet stay proportion-based. Meant
+  /// to save time versus drawing every rectangle from a blank image; the
+  /// user is expected to nudge each region afterwards via "Set region".
+  Future<void> autoMapImageParts() async {
+    var headSplit = .18;
+    var legSplit = .52;
+    if (importedImagePath.isNotEmpty) {
+      final bounds = await ImageSegmentation.findBoundaries(importedImagePath);
+      headSplit = bounds.headSplit;
+      legSplit = bounds.legSplit;
+    }
     void set(String id, double l, double t, double w, double h) => parts.firstWhere((p) => p.id == id).crop = Rect.fromLTWH(l, t, w, h);
-    set('face', .32, .0, .36, .18);
-    set('hair', .28, .0, .44, .16);
-    set('body', .25, .16, .50, .34);
-    set('clothes', .25, .16, .50, .34);
-    set('arm_l', .04, .18, .24, .34);
-    set('arm_r', .72, .18, .24, .34);
-    set('hand_l', .02, .48, .14, .10);
-    set('hand_r', .84, .48, .14, .10);
-    set('leg_l', .27, .50, .22, .42);
-    set('leg_r', .51, .50, .22, .42);
+    set('face', .32, .0, .36, headSplit);
+    set('hair', .28, .0, .44, headSplit * .9);
+    set('body', .25, headSplit, .50, legSplit - headSplit);
+    set('clothes', .25, headSplit, .50, legSplit - headSplit);
+    set('arm_l', .04, headSplit + .02, .24, (legSplit - headSplit) + .02);
+    set('arm_r', .72, headSplit + .02, .24, (legSplit - headSplit) + .02);
+    set('hand_l', .02, legSplit - .04, .14, .10);
+    set('hand_r', .84, legSplit - .04, .14, .10);
+    set('leg_l', .27, legSplit, .22, 1 - legSplit - .08);
+    set('leg_r', .51, legSplit, .22, 1 - legSplit - .08);
     set('shoes_l', .27, .90, .22, .10);
     set('shoes_r', .51, .90, .22, .10);
-    status = 'Rough regions guessed — nudge each one, this is not real detection';
+    status = 'Regions guessed from image edges — still nudge each one, this is not full detection';
+    persistSelectedActor();
     notifyListeners();
   }
   void selectAnimation(String id) { selectedAnimationId = id; _playedAudioIds.clear(); _lastAudioPlayhead = -1; setPlayhead(0); }
@@ -363,6 +606,7 @@ class ProjectState extends ChangeNotifier {
     if (rotation != null) b.rotation = rotation;
     if (scale != null) b.scale = scale.clamp(.1, 3);
     status = 'Pose modified';
+    persistSelectedActor();
     notifyListeners();
   }
 
@@ -371,6 +615,7 @@ class ProjectState extends ChangeNotifier {
     selectedAnimation.track(b.id).upsert(PoseKeyframe(time: playhead, x: b.x, y: b.y, rotation: b.rotation, scale: b.scale));
     captureHistory();
     status = 'Keyframe captured at ${playhead.toStringAsFixed(2)}s';
+    persistSelectedActor();
     notifyListeners();
   }
 
@@ -399,10 +644,9 @@ class ProjectState extends ChangeNotifier {
 
   void resetPose() { for (final b in bones) { final d = defaultBones().firstWhere((x) => x.id == b.id); b.x = d.x; b.y = d.y; b.rotation = d.rotation; b.scale = d.scale; } captureHistory(); notifyListeners(); }
 
-  void loadAt(double time) {
-    final clip = selectedAnimation;
+  void _applyClipToBones(List<Bone> targetBones, AnimationClip clip, double time) {
     final local = clip.loop && clip.duration > 0 ? time % clip.duration : time.clamp(0, clip.duration);
-    for (final b in bones) {
+    for (final b in targetBones) {
       final track = clip.tracks[b.id];
       if (track == null || track.keys.isEmpty) continue;
       final keys = track.keys;
@@ -413,6 +657,17 @@ class ProjectState extends ChangeNotifier {
       final t = span < .0001 ? 0.0 : _ease(((local - a.time) / span).clamp(0, 1));
       b.x = _lerp(a.x, c.x, t); b.y = _lerp(a.y, c.y, t); b.rotation = _lerpAngle(a.rotation, c.rotation, t); b.scale = _lerp(a.scale, c.scale, t);
     }
+  }
+
+  void loadAt(double time) {
+    _persistSelectedActor();
+    for (final actor in actors) {
+      final clip = animations.firstWhere((a) => a.id == actor.animationId, orElse: () => selectedAnimation);
+      _applyClipToBones(actor.bones, clip, time);
+    }
+    selectedActor.applyTo(this);
+    final clip = selectedAnimation;
+    final local = clip.loop && clip.duration > 0 ? time % clip.duration : time.clamp(0, clip.duration);
     if (local < _lastAudioPlayhead) _playedAudioIds.clear(); // looped back to the start
     for (final cue in activeAudio) {
       if (cue.time <= local && cue.time > _lastAudioPlayhead && !_playedAudioIds.contains(cue.id)) {
