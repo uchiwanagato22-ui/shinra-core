@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart' show ChangeNotifier;
 import 'package:flutter/material.dart' show Color, Rect;
 import '../services/image_segmentation.dart';
 import '../services/animation_import.dart';
@@ -681,7 +682,7 @@ class ProjectState extends ChangeNotifier {
     selectAnimation(queue[queueIndex]);
     return true;
   }
-  void setPlayhead(double value) { playhead = value.clamp(0, selectedAnimation.duration); if (value <= 0) { _playedAudioIds.clear(); _lastAudioPlayhead = -1; } notifyListeners(); }
+  void setPlayhead(double value) { playhead = value.clamp(0, selectedAnimation.duration).toDouble(); if (value <= 0) { _playedAudioIds.clear(); _lastAudioPlayhead = -1; } notifyListeners(); }
   void setCamera({double? x, double? y, double? zoom, double? rotation}) { if (x != null) camera.x = x; if (y != null) camera.y = y; if (zoom != null) camera.zoom = zoom.clamp(.2, 4); if (rotation != null) camera.rotation = rotation; notifyListeners(); }
 
   void setBone({double? x, double? y, double? rotation, double? scale}) {
@@ -752,7 +753,7 @@ class ProjectState extends ChangeNotifier {
   void resetPose() { for (final b in bones) { final d = defaultBones().firstWhere((x) => x.id == b.id); b.x = d.x; b.y = d.y; b.rotation = d.rotation; b.scale = d.scale; } captureHistory(); notifyListeners(); }
 
   void _applyClipToBones(List<Bone> targetBones, AnimationClip clip, double time) {
-    final local = clip.loop && clip.duration > 0 ? time % clip.duration : time.clamp(0, clip.duration);
+    final local = clip.loop && clip.duration > 0 ? time % clip.duration : time.clamp(0, clip.duration).toDouble();
     for (final b in targetBones) {
       final track = clip.tracks[b.id];
       if (track == null || track.keys.isEmpty) continue;
@@ -763,7 +764,7 @@ class ProjectState extends ChangeNotifier {
       final span = (c.time - a.time).abs();
       // The incoming key controls how the movement arrives. This creates
       // readable anticipation and decisive impact without changing poses.
-      final t = span < .0001 ? 0.0 : _ease(((local - a.time) / span).clamp(0, 1), c.easing);
+      final t = span < .0001 ? 0.0 : _ease(((local - a.time) / span).clamp(0, 1).toDouble(), c.easing);
       b.x = _lerp(a.x, c.x, t); b.y = _lerp(a.y, c.y, t); b.rotation = _lerpAngle(a.rotation, c.rotation, t); b.scale = _lerp(a.scale, c.scale, t);
     }
   }
@@ -776,7 +777,7 @@ class ProjectState extends ChangeNotifier {
     }
     selectedActor.applyTo(this);
     final clip = selectedAnimation;
-    final local = clip.loop && clip.duration > 0 ? time % clip.duration : time.clamp(0, clip.duration);
+    final local = clip.loop && clip.duration > 0 ? time % clip.duration : time.clamp(0, clip.duration).toDouble();
     if (local < _lastAudioPlayhead) _playedAudioIds.clear(); // looped back to the start
     for (final cue in activeAudio) {
       if (cue.time <= local && cue.time > _lastAudioPlayhead && !_playedAudioIds.contains(cue.id)) {
@@ -789,7 +790,7 @@ class ProjectState extends ChangeNotifier {
     // uses `local` (wrapped) — keep the displayed playhead wrapped too,
     // otherwise the timeline slider freezes at the end while the character
     // keeps animating.
-    playhead = clip.loop ? local : time.clamp(0, clip.duration);
+    playhead = clip.loop ? local : time.clamp(0, clip.duration).toDouble();
     notifyListeners();
   }
 

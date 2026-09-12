@@ -20,3 +20,35 @@ workflows:
         notify:
           success: true
           failure: true
+
+  windows-workflow:
+    name: shinra core - Windows
+    max_build_duration: 60
+    instance_type: windows_x2
+    environment:
+      flutter: stable
+    scripts:
+      - name: Activer le support desktop Windows
+        script: |
+          flutter config --enable-windows-desktop
+      - name: Générer le dossier windows/ s'il manque
+        script: |
+          if not exist windows flutter create --platforms=windows .
+      - name: Installer les dépendances
+        script: |
+          flutter pub get
+      - name: Build Windows (release)
+        script: |
+          flutter build windows --release
+      - name: Compresser le build Windows
+        script: |
+          powershell -Command "Compress-Archive -Path 'build\windows\x64\runner\Release\*' -DestinationPath 'shinra_core_windows.zip' -Force"
+    artifacts:
+      - shinra_core_windows.zip
+    publishing:
+      email:
+        recipients:
+          - uchiwanagato22@gmail.com
+        notify:
+          success: true
+          failure: true

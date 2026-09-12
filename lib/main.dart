@@ -22,7 +22,7 @@ import 'widgets/viewport.dart';
 /// with exactly one bold accent (crimson, shared with the wider Shinra family)
 /// and a sparse gold for secondary emphasis, rather than a generated Material
 /// seed-color scheme.
-class Ink {
+class Palette {
   static const void_ = Color(0xFF0A0C12); // canvas / scaffold
   static const panel = Color(0xFF12151F); // side panels, nav rail
   static const surface = Color(0xFF181C29); // cards
@@ -47,53 +47,53 @@ class ShinraApp extends StatelessWidget {
       title: 'SHINRA CORE',
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: Ink.void_,
+        scaffoldBackgroundColor: Palette.void_,
         useMaterial3: true,
         colorScheme: const ColorScheme.dark(
-          surface: Ink.surface,
-          primary: Ink.crimson,
-          secondary: Ink.gold,
-          onSurface: Ink.ink,
+          surface: Palette.surface,
+          primary: Palette.crimson,
+          secondary: Palette.gold,
+          onSurface: Palette.ink,
           error: Color(0xFFE85D5D),
         ),
         fontFamily: GoogleFonts.workSans().fontFamily,
-        textTheme: ThemeData.dark().textTheme.apply(bodyColor: Ink.ink, displayColor: Ink.ink).copyWith(
-              headlineSmall: display.headlineSmall?.copyWith(fontWeight: FontWeight.w700, letterSpacing: .2, color: Ink.ink),
-              titleLarge: display.titleLarge?.copyWith(fontWeight: FontWeight.w700, color: Ink.ink),
-              titleMedium: display.titleMedium?.copyWith(fontWeight: FontWeight.w600, color: Ink.ink),
+        textTheme: ThemeData.dark().textTheme.apply(bodyColor: Palette.ink, displayColor: Palette.ink).copyWith(
+              headlineSmall: display.headlineSmall?.copyWith(fontWeight: FontWeight.w700, letterSpacing: .2, color: Palette.ink),
+              titleLarge: display.titleLarge?.copyWith(fontWeight: FontWeight.w700, color: Palette.ink),
+              titleMedium: display.titleMedium?.copyWith(fontWeight: FontWeight.w600, color: Palette.ink),
             ),
-        cardColor: Ink.surface,
-        dividerColor: Ink.line,
+        cardColor: Palette.surface,
+        dividerColor: Palette.line,
         navigationRailTheme: NavigationRailThemeData(
-          backgroundColor: Ink.panel,
-          indicatorColor: Ink.crimson.withOpacity(.18),
-          selectedIconTheme: const IconThemeData(color: Ink.crimson),
-          unselectedIconTheme: IconThemeData(color: Ink.inkMuted),
-          selectedLabelTextStyle: const TextStyle(color: Ink.crimson, fontWeight: FontWeight.w600, fontSize: 11),
-          unselectedLabelTextStyle: TextStyle(color: Ink.inkMuted, fontSize: 11),
+          backgroundColor: Palette.panel,
+          indicatorColor: Palette.crimson.withOpacity(.18),
+          selectedIconTheme: const IconThemeData(color: Palette.crimson),
+          unselectedIconTheme: IconThemeData(color: Palette.inkMuted),
+          selectedLabelTextStyle: const TextStyle(color: Palette.crimson, fontWeight: FontWeight.w600, fontSize: 11),
+          unselectedLabelTextStyle: TextStyle(color: Palette.inkMuted, fontSize: 11),
         ),
-        filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: Ink.crimson, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
-        outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(foregroundColor: Ink.ink, side: const BorderSide(color: Ink.line), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
+        filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: Palette.crimson, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
+        outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(foregroundColor: Palette.ink, side: const BorderSide(color: Palette.line), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
         chipTheme: ChipThemeData(
-          backgroundColor: Ink.surface,
-          selectedColor: Ink.crimson.withOpacity(.22),
-          labelStyle: const TextStyle(color: Ink.ink, fontSize: 12),
-          side: const BorderSide(color: Ink.line),
+          backgroundColor: Palette.surface,
+          selectedColor: Palette.crimson.withOpacity(.22),
+          labelStyle: const TextStyle(color: Palette.ink, fontSize: 12),
+          side: const BorderSide(color: Palette.line),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-        sliderTheme: const SliderThemeData(activeTrackColor: Ink.crimson, thumbColor: Ink.crimson, inactiveTrackColor: Ink.line),
-        switchTheme: SwitchThemeData(thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? Ink.crimson : Ink.inkMuted)),
+        sliderTheme: const SliderThemeData(activeTrackColor: Palette.crimson, thumbColor: Palette.crimson, inactiveTrackColor: Palette.line),
+        switchTheme: SwitchThemeData(thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? Palette.crimson : Palette.inkMuted)),
       ),
       home: const Shell(),
     );
   }
 }
 
-enum Page { home, studio, scene, character, library, rig, animate, face, fx, camera, audio, ai, export }
+enum AppPage { home, studio, scene, character, library, rig, animate, face, fx, camera, audio, ai, export }
 
 class Shell extends StatefulWidget { const Shell({super.key}); @override State<Shell> createState() => _ShellState(); }
 class _ShellState extends State<Shell> {
-  Page page = Page.home; Timer? timer;
+  AppPage page = AppPage.home; Timer? timer;
   final audioCues = AudioCueService();
   @override void dispose() { timer?.cancel(); audioCues.dispose(); super.dispose(); }
   void togglePlay(ProjectState p) { if (p.playing) { timer?.cancel(); p.playing = false; p.status = 'Paused'; p.notifyListeners(); return; } p.playing = true; p.status = 'Playing'; p.notifyListeners(); timer?.cancel(); timer = Timer.periodic(const Duration(milliseconds: 33), (_) { if (!mounted) return; final next = p.playhead + 1 / 30; if (next >= p.selectedAnimation.duration && !p.selectedAnimation.loop) { if (p.advanceQueue()) return; p.playing = false; timer?.cancel(); p.setPlayhead(p.selectedAnimation.duration); } else { p.loadAt(next); } }); }
@@ -109,9 +109,9 @@ class _ShellState extends State<Shell> {
             content: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.volume_up, size: 18), const SizedBox(width: 8), Text(name)]),
           ));
         };
-        return Scaffold(body: Row(children: [NavigationRail(selectedIndex: page.index, onDestinationSelected: (i) => setState(() => page = Page.values[i]), labelType: NavigationRailLabelType.all, destinations: const [NavigationRailDestination(icon: Icon(Icons.home_outlined), label: Text('Home')), NavigationRailDestination(icon: Icon(Icons.movie_outlined), label: Text('Studio')), NavigationRailDestination(icon: Icon(Icons.groups_outlined), label: Text('Scene')), NavigationRailDestination(icon: Icon(Icons.person_outline), label: Text('Character')), NavigationRailDestination(icon: Icon(Icons.video_library_outlined), label: Text('Library')), NavigationRailDestination(icon: Icon(Icons.account_tree_outlined), label: Text('Rig')), NavigationRailDestination(icon: Icon(Icons.timeline_outlined), label: Text('Animate')), NavigationRailDestination(icon: Icon(Icons.face_outlined), label: Text('Face')), NavigationRailDestination(icon: Icon(Icons.auto_awesome_outlined), label: Text('FX')), NavigationRailDestination(icon: Icon(Icons.videocam_outlined), label: Text('Camera')), NavigationRailDestination(icon: Icon(Icons.audiotrack_outlined), label: Text('Audio')), NavigationRailDestination(icon: Icon(Icons.smart_toy_outlined), label: Text('AI Director')), NavigationRailDestination(icon: Icon(Icons.file_upload_outlined), label: Text('Export'))]), Expanded(child: _page(p))]));
+        return Scaffold(body: Row(children: [NavigationRail(selectedIndex: page.index, onDestinationSelected: (i) => setState(() => page = AppPage.values[i]), labelType: NavigationRailLabelType.all, destinations: const [NavigationRailDestination(icon: Icon(Icons.home_outlined), label: Text('Home')), NavigationRailDestination(icon: Icon(Icons.movie_outlined), label: Text('Studio')), NavigationRailDestination(icon: Icon(Icons.groups_outlined), label: Text('Scene')), NavigationRailDestination(icon: Icon(Icons.person_outline), label: Text('Character')), NavigationRailDestination(icon: Icon(Icons.video_library_outlined), label: Text('Library')), NavigationRailDestination(icon: Icon(Icons.account_tree_outlined), label: Text('Rig')), NavigationRailDestination(icon: Icon(Icons.timeline_outlined), label: Text('Animate')), NavigationRailDestination(icon: Icon(Icons.face_outlined), label: Text('Face')), NavigationRailDestination(icon: Icon(Icons.auto_awesome_outlined), label: Text('FX')), NavigationRailDestination(icon: Icon(Icons.videocam_outlined), label: Text('Camera')), NavigationRailDestination(icon: Icon(Icons.audiotrack_outlined), label: Text('Audio')), NavigationRailDestination(icon: Icon(Icons.smart_toy_outlined), label: Text('AI Director')), NavigationRailDestination(icon: Icon(Icons.file_upload_outlined), label: Text('Export'))]), Expanded(child: _page(p))]));
       });
-  Widget _page(ProjectState p) { switch (page) { case Page.home: return HomePage(onOpen: (x) => setState(() => page = x)); case Page.studio: return StudioPage(p: p, onPlay: () => togglePlay(p)); case Page.scene: return ScenePage(p: p, onPlay: () => togglePlay(p)); case Page.character: return CharacterPage(p: p); case Page.library: return LibraryPage(p: p, onUse: () => setState(() => page = Page.animate)); case Page.rig: return RigPage(p: p); case Page.animate: return AnimatePage(p: p, onPlay: () => togglePlay(p)); case Page.face: return FacePage(p: p); case Page.fx: return FxPage(p: p); case Page.camera: return CameraPage(p: p); case Page.audio: return AudioPage(p: p); case Page.ai: return AiPage(p: p, onPlaySequence: (ids) => playQueue(p, ids)); case Page.export: return ExportPage(p: p); } }
+  Widget _page(ProjectState p) { switch (page) { case AppPage.home: return HomePage(onOpen: (x) => setState(() => page = x)); case AppPage.studio: return StudioPage(p: p, onPlay: () => togglePlay(p)); case AppPage.scene: return ScenePage(p: p, onPlay: () => togglePlay(p)); case AppPage.character: return CharacterPage(p: p); case AppPage.library: return LibraryPage(p: p, onUse: () => setState(() => page = AppPage.animate)); case AppPage.rig: return RigPage(p: p); case AppPage.animate: return AnimatePage(p: p, onPlay: () => togglePlay(p)); case AppPage.face: return FacePage(p: p); case AppPage.fx: return FxPage(p: p); case AppPage.camera: return CameraPage(p: p); case AppPage.audio: return AudioPage(p: p); case AppPage.ai: return AiPage(p: p, onPlaySequence: (ids) => playQueue(p, ids)); case AppPage.export: return ExportPage(p: p); } }
 }
 
 class Top extends StatelessWidget {
@@ -122,11 +122,11 @@ class Top extends StatelessWidget {
   Widget build(BuildContext c) => Padding(
         padding: const EdgeInsets.fromLTRB(24, 22, 24, 16),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(width: 4, height: subtitle != null ? 40 : 26, margin: const EdgeInsets.only(right: 12, top: 3), decoration: BoxDecoration(color: Ink.crimson, borderRadius: BorderRadius.circular(2))),
+          Container(width: 4, height: subtitle != null ? 40 : 26, margin: const EdgeInsets.only(right: 12, top: 3), decoration: BoxDecoration(color: Palette.crimson, borderRadius: BorderRadius.circular(2))),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title, style: Theme.of(c).textTheme.headlineSmall),
-              if (subtitle != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(subtitle!, style: const TextStyle(color: Ink.inkMuted, fontSize: 13))),
+              if (subtitle != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(subtitle!, style: const TextStyle(color: Palette.inkMuted, fontSize: 13))),
             ]),
           ),
         ]),
@@ -140,12 +140,12 @@ class CardBox extends StatelessWidget {
   @override
   Widget build(BuildContext c) => Container(
         padding: padding,
-        decoration: BoxDecoration(color: Ink.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: Ink.line)),
+        decoration: BoxDecoration(color: Palette.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: Palette.line)),
         child: child,
       );
 }
 
-class HomePage extends StatelessWidget { const HomePage({super.key, required this.onOpen}); final void Function(Page) onOpen; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'SHINRA CORE', subtitle: '2D anime animation workspace'), Expanded(child: GridView.count(crossAxisCount: 3, padding: const EdgeInsets.all(24), crossAxisSpacing: 16, mainAxisSpacing: 16, children: [for (final x in [(Page.studio, Icons.movie, 'Studio', 'Compose a scene'), (Page.scene, Icons.groups, 'Scene', '3-6 characters, city, combat'), (Page.character, Icons.person, 'Character', 'Build parts and import art'), (Page.rig, Icons.account_tree, 'Rig Studio', 'Bones and bindings'), (Page.animate, Icons.timeline, 'Animation Lab', 'Keyframes and playback'), (Page.face, Icons.face, 'Expressions', 'Anime facial acting'), (Page.fx, Icons.auto_awesome, 'FX', 'Impacts and particles'), (Page.camera, Icons.videocam, 'Camera', 'Shots and framing'), (Page.ai, Icons.smart_toy, 'AI Director', 'Turn direction into timeline')]) CardBox(child: InkWell(onTap: () => onOpen(x.$1), borderRadius: BorderRadius.circular(18), child: Padding(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(x.$2, size: 36, color: const Color(0xFFE23349)), const Spacer(), Text(x.$3, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text(x.$4, style: TextStyle(color: Colors.white.withOpacity(.55))) ]))))]) )]); }
+class HomePage extends StatelessWidget { const HomePage({super.key, required this.onOpen}); final void Function(AppPage) onOpen; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'SHINRA CORE', subtitle: '2D anime animation workspace'), Expanded(child: GridView.count(crossAxisCount: 3, padding: const EdgeInsets.all(24), crossAxisSpacing: 16, mainAxisSpacing: 16, children: [for (final x in [(AppPage.studio, Icons.movie, 'Studio', 'Compose a scene'), (AppPage.scene, Icons.groups, 'Scene', '3-6 characters, city, combat'), (AppPage.character, Icons.person, 'Character', 'Build parts and import art'), (AppPage.rig, Icons.account_tree, 'Rig Studio', 'Bones and bindings'), (AppPage.animate, Icons.timeline, 'Animation Lab', 'Keyframes and playback'), (AppPage.face, Icons.face, 'Expressions', 'Anime facial acting'), (AppPage.fx, Icons.auto_awesome, 'FX', 'Impacts and particles'), (AppPage.camera, Icons.videocam, 'Camera', 'Shots and framing'), (AppPage.ai, Icons.smart_toy, 'AI Director', 'Turn direction into timeline')]) CardBox(child: InkWell(onTap: () => onOpen(x.$1), borderRadius: BorderRadius.circular(18), child: Padding(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(x.$2, size: 36, color: const Color(0xFFE23349)), const Spacer(), Text(x.$3, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text(x.$4, style: TextStyle(color: Colors.white.withOpacity(.55))) ]))))]) )]); }
 
 class ScenePage extends StatefulWidget {
   const ScenePage({super.key, required this.p, required this.onPlay});
@@ -256,7 +256,7 @@ class _KeyframeTimeline extends StatelessWidget {
                 onTap: () => p.setPlayhead(t),
                 child: Transform.rotate(
                   angle: .785398,
-                  child: Container(width: 10, height: 10, decoration: BoxDecoration(color: (t - p.playhead).abs() < .02 ? Ink.crimson : Ink.gold, border: Border.all(color: Ink.void_, width: 1.2))),
+                  child: Container(width: 10, height: 10, decoration: BoxDecoration(color: (t - p.playhead).abs() < .02 ? Palette.crimson : Palette.gold, border: Border.all(color: Palette.void_, width: 1.2))),
                 ),
               ),
             ),
@@ -268,7 +268,7 @@ class _KeyframeTimeline extends StatelessWidget {
 
 class _Transport extends StatelessWidget { const _Transport({required this.p, required this.onPlay}); final ProjectState p; final VoidCallback onPlay; @override Widget build(BuildContext c) => Column(children: [Row(children: [IconButton(onPressed: p.undo, icon: const Icon(Icons.undo)), IconButton(onPressed: p.redo, icon: const Icon(Icons.redo)), IconButton(onPressed: () => p.setPlayhead(0), icon: const Icon(Icons.stop)), IconButton(onPressed: onPlay, icon: Icon(p.playing ? Icons.pause : Icons.play_arrow)), const SizedBox(width: 8), Text('${p.playhead.toStringAsFixed(2)} / ${p.selectedAnimation.duration.toStringAsFixed(2)}s'), const Spacer(), DropdownButton<String>(value: p.selectedAnimationId, items: [for (final a in p.animations) DropdownMenuItem(value: a.id, child: Text(a.name))], onChanged: (v) { if (v != null) { p.selectedAnimationId = v; p.setPlayhead(0); } })]), _KeyframeTimeline(p: p)]); }
 class _Inspector extends StatelessWidget { const _Inspector({required this.p}); final ProjectState p; @override Widget build(BuildContext c) => CardBox(child: ListView(children: [const Text('INSPECTOR', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1)), const SizedBox(height: 18), Text('Bone: ${p.selectedBone.name}'), const SizedBox(height: 10), _Num('X', p.selectedBone.x, (v) => p.setBone(x: v)), _Num('Y', p.selectedBone.y, (v) => p.setBone(y: v)), _Num('Rotation', p.selectedBone.rotation, (v) => p.setBone(rotation: v)), _Num('Scale', p.selectedBone.scale, (v) => p.setBone(scale: v)), const SizedBox(height: 14), FilledButton.icon(onPressed: p.captureKeyframe, icon: const Icon(Icons.key), label: const Text('Capture Keyframe')), OutlinedButton(onPressed: p.captureAll, child: const Text('Capture Full Pose')), const SizedBox(height: 10), Text(p.status, style: TextStyle(color: Colors.white.withOpacity(.5)))])); }
-class _Num extends StatelessWidget { const _Num(this.label, this.value, this.onChanged); final String label; final double value; final ValueChanged<double> onChanged; @override Widget build(BuildContext c) => Row(children: [SizedBox(width: 72, child: Text(label)), Expanded(child: Slider(value: value.clamp(-200, 200), min: -200, max: 200, onChanged: onChanged))]); }
+class _Num extends StatelessWidget { const _Num(this.label, this.value, this.onChanged); final String label; final double value; final ValueChanged<double> onChanged; @override Widget build(BuildContext c) => Row(children: [SizedBox(width: 72, child: Text(label)), Expanded(child: Slider(value: value.clamp(-200, 200).toDouble(), min: -200, max: 200, onChanged: onChanged))]); }
 
 class CharacterPage extends StatefulWidget { const CharacterPage({super.key, required this.p}); final ProjectState p; @override State<CharacterPage> createState() => _CharacterPageState(); }
 class _CharacterPageState extends State<CharacterPage> {
@@ -766,7 +766,7 @@ class _CropPickerDialogState extends State<_CropPickerDialog> {
     rect = widget.initial;
   }
 
-  Offset _clamp(Offset o) => Offset(o.dx.clamp(0, boxSize), o.dy.clamp(0, boxSize));
+  Offset _clamp(Offset o) => Offset(o.dx.clamp(0, boxSize).toDouble(), o.dy.clamp(0, boxSize).toDouble());
 
   @override
   Widget build(BuildContext context) {

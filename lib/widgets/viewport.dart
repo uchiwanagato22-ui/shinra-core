@@ -290,7 +290,7 @@ class _CharacterPainter extends CustomPainter {
     for (final e in p.activeFx) {
       final t = (p.playhead - e.time) / window;
       if (t < 0 || t > 1) continue;
-      final fade = (1 - t).clamp(0, 1);
+      final fade = (1 - t).clamp(0, 1).toDouble();
       switch (e.name) {
         case 'Impact':
           // Anime-style hit: a hard white flash on the first frames of the
@@ -424,7 +424,7 @@ class _CharacterPainter extends CustomPainter {
             ..quadraticBezierTo(c.dx, c.dy - 5 * eyeScale, c.dx + 9 * eyeScale, c.dy - 2 * eyeScale)
             ..quadraticBezierTo(c.dx, c.dy + 4 * eyeScale, c.dx - 9 * eyeScale, c.dy);
           canvas.drawPath(path, eyeWhite);
-          canvas.drawCircle(pupil.translate(1 * side, 0), 3 * eyeScale, eyeColor);
+          canvas.drawCircle(pupil.translate(1.0 * side, 0), 3 * eyeScale, eyeColor);
           break;
         case 'Sleepy':
           canvas.drawOval(Rect.fromCenter(center: c, width: 14 * eyeScale, height: 6 * eyeScale), eyeWhite);
@@ -695,7 +695,7 @@ void _drawBackground(Canvas canvas, Size size, String style, String customPath) 
       for (var i = 0; i < 7; i++) {
         final w = 40.0 + (i % 3) * 14;
         final x = i * (size.width / 7);
-        final h = 120 + (i % 4) * 40;
+        final h = 120.0 + (i % 4) * 40;
         canvas.drawRect(Rect.fromLTWH(x, size.height - h, w, h), b);
         for (var wy = size.height - h + 12; wy < size.height - 12; wy += 18) {
           for (var wx = x + 6; wx < x + w - 6; wx += 14) canvas.drawRect(Rect.fromLTWH(wx, wy, 6, 8), win);
