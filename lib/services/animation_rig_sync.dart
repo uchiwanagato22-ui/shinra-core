@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/rig.dart';
 
@@ -49,8 +50,11 @@ class AnimationRigSync {
     final result = <String, PoseState>{};
     final normalizedTime = _normalizeTime(time, animation);
 
-    for (var part in parts.values) {
-      final track = animation.tracks[part.boneId];
+    // Evaluate tracks directly instead of iterating visual parts.  Root bones
+    // and helper bones can be animated even when they have no dedicated
+    // drawable part (for example a jump uses the root track).
+    for (final boneId in animation.tracks.keys) {
+      final track = animation.tracks[boneId];
       if (track == null) continue;
 
       final keyframes = track.keys;
@@ -65,7 +69,7 @@ class AnimationRigSync {
 
       // Interpolate
       final pose = _interpolateBetween(before, after, normalizedTime);
-      result[part.boneId] = pose;
+      result[boneId] = pose;
     }
 
     return result;
@@ -96,23 +100,52 @@ class AnimationRigSync {
     }
 
     // Linear interpolation (can be extended to ease-in/out)
-    final t = (normalizedTime - before.time) / (after.time - before.time);
-    final clampedT = t.clamp(0.0, 1.0);
+    final span = after.time - before.time;
+    if (span.abs() < 0.000001) {
+      return PoseState(x: after.x, y: after.y, rotation: after.rotation, scale: after.scale);
+    }
+    final t = ((normalizedTime - before.time) / span).clamp(0.0, 1.0);
+    final curvedT = _applyEasing(t, after.easing);
 
     return PoseState(
-      x: _lerp(before.x, after.x, clampedT),
-      y: _lerp(before.y, after.y, clampedT),
-      rotation: _lerpAngle(before.rotation, after.rotation, clampedT),
-      scale: _lerp(before.scale, after.scale, clampedT),
+      x: _lerp(before.x, after.x, curvedT),
+      y: _lerp(before.y, after.y, curvedT),
+      rotation: _lerpAngle(before.rotation, after.rotation, curvedT),
+      scale: _lerp(before.scale, after.scale, curvedT),
     );
   }
 
   /// Normalize time to animation duration (handles looping).
   static double _normalizeTime(double time, AnimationClip animation) {
+    final duration = animation.duration;
+    if (duration <= 0) return 0;
     if (animation.loop) {
-      return time % animation.duration;
+      final wrapped = time % duration;
+      return wrapped < 0 ? wrapped + duration : wrapped;
     }
-    return time.clamp(0, animation.duration);
+    return time.clamp(0, duration);
+  }
+
+  /// Anime-friendly timing curves.  The keyframe's easing controls how the
+  /// motion approaches the *next* pose: smooth for acting, ease-in/out for
+  /// body mechanics, and impact for sharp hits/acceleration.
+  static double _applyEasing(double t, KeyframeEasing easing) {
+    switch (easing) {
+      case KeyframeEasing.linear:
+        return t;
+      case KeyframeEasing.smooth:
+        return t * t * (3 - 2 * t);
+      case KeyframeEasing.easeIn:
+        return t * t * t;
+      case KeyframeEasing.easeOut:
+        final inv = 1 - t;
+        return 1 - inv * inv * inv;
+      case KeyframeEasing.impact:
+        // Fast attack into the pose, tiny controlled overshoot, then settle.
+        if (t < .72) return math.pow(t / .72, .42).toDouble() * .92;
+        final u = (t - .72) / .28;
+        return .92 + .08 * (1 - math.cos(u * math.pi));
+    }
   }
 
   /// Linear interpolation.

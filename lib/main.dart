@@ -98,7 +98,33 @@ class _ShellState extends State<Shell> {
   AppPage page = AppPage.home; Timer? timer;
   final audioCues = AudioCueService();
   @override void dispose() { timer?.cancel(); audioCues.dispose(); super.dispose(); }
-  void togglePlay(ProjectState p) { if (p.playing) { timer?.cancel(); p.playing = false; p.status = 'Paused'; p.notifyListeners(); return; } p.playing = true; p.status = 'Playing'; p.notifyListeners(); timer?.cancel(); timer = Timer.periodic(const Duration(milliseconds: 33), (_) { if (!mounted) return; final next = p.playhead + 1 / 30; if (next >= p.selectedAnimation.duration && !p.selectedAnimation.loop) { if (p.advanceQueue()) return; p.playing = false; timer?.cancel(); p.setPlayhead(p.selectedAnimation.duration); } else { p.loadAt(next); } }); }
+  void togglePlay(ProjectState p) {
+    if (p.playing) {
+      timer?.cancel();
+      p.playing = false;
+      p.status = 'Paused';
+      p.notifyListeners();
+      return;
+    }
+    p.playing = true;
+    p.status = 'Playing';
+    p.notifyListeners();
+    timer?.cancel();
+    final fps = p.playbackFps.clamp(8, 60);
+    timer = Timer.periodic(Duration(microseconds: (1000000 / fps).round()), (_) {
+      if (!mounted || !p.playing) return;
+      final step = 1 / fps;
+      final next = p.playhead + step;
+      if (next >= p.selectedAnimation.duration && !p.selectedAnimation.loop) {
+        if (p.advanceQueue()) return;
+        p.playing = false;
+        timer?.cancel();
+        p.setPlayhead(p.selectedAnimation.duration);
+      } else {
+        p.loadAt(next);
+      }
+    });
+  }
   void playQueue(ProjectState p, List<String> clipIds) { p.startQueue(clipIds); togglePlay(p); }
   @override Widget build(BuildContext context) => Consumer<ProjectState>(builder: (ctx, p, __) {
         p.onAudioCue ??= (name) {
@@ -697,6 +723,21 @@ class AnimatePage extends StatelessWidget {
             const SizedBox(height: 8),
             Row(children: [
               FilledButton.icon(onPressed: onPlay, icon: Icon(p.playing ? Icons.pause : Icons.play_arrow), label: Text(p.playing ? 'Pause' : 'Play')),
+              const SizedBox(width: 10),
+              const Text('Timing', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+              const SizedBox(width: 6),
+              DropdownButton<int>(
+                value: p.playbackFps,
+                items: const [8, 12, 15, 24, 30, 60].map((f) => DropdownMenuItem(value: f, child: Text('${f} fps'))).toList(),
+                onChanged: p.playing ? null : (v) { if (v != null) p.setPlaybackFps(v); },
+              ),
+              const SizedBox(width: 6),
+              FilterChip(
+                avatar: const Icon(Icons.layers, size: 16),
+                label: const Text('Onion'),
+                selected: p.onionSkin,
+                onSelected: p.setOnionSkin,
+              ),
               const SizedBox(width: 8),
               OutlinedButton(onPressed: p.captureKeyframe, child: const Text('Keyframe')),
               const SizedBox(width: 8),
@@ -721,7 +762,15 @@ class AnimatePage extends StatelessWidget {
                   ),
               ],
             ),
-            Row(children: [for (final b in p.bones.take(6)) Expanded(child: Text('${b.name}\n${p.selectedAnimation.tracks[b.id]?.keys.length ?? 0} keys', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)))]),
+            Row(children: [
+              for (final b in p.bones.take(6)) Expanded(child: Text('${b.name}\n${p.selectedAnimation.tracks[b.id]?.keys.length ?? 0} keys', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)))
+            ]),
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, children: [
+              OutlinedButton.icon(onPressed: () => p.applyAnimeMotionPreset('anticipation'), icon: const Icon(Icons.flash_on, size: 16), label: const Text('Anticipation')),
+              OutlinedButton.icon(onPressed: () => p.applyAnimeMotionPreset('impact'), icon: const Icon(Icons.bolt, size: 16), label: const Text('Impact timing')),
+              OutlinedButton.icon(onPressed: () => p.applyAnimeMotionPreset('settle'), icon: const Icon(Icons.waves, size: 16), label: const Text('Follow-through')),
+            ]),
           ]),
         ),
         Expanded(child: Padding(padding: const EdgeInsets.all(16), child: ShinraViewport(project: p))),
@@ -1126,7 +1175,7 @@ class _ExportPageState extends State<ExportPage> {
                   if (resultPath != null) ...[
                     const SizedBox(height: 14),
                     FilledButton.icon(
-                      onPressed: () => SharePlus.instance.share(ShareParams(files: [XFile(resultPath!)], text: 'Made with SHINRA CORE')),
+                      onPressed: () => Share.shareXFiles([XFile(resultPath!)], text: 'Made with SHINRA CORE'),
                       icon: const Icon(Icons.ios_share),
                       label: const Text('Share / Save this file'),
                     ),

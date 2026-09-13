@@ -303,6 +303,10 @@ class ProjectState extends ChangeNotifier {
   bool accBelt = false;
   double playhead = 0;
   bool playing = false;
+  int playbackFps = 24;
+  bool onionSkin = true;
+  int onionBefore = 2;
+  int onionAfter = 2;
   String tool = 'select';
   String expression = 'Neutral';
   /// Auto follows the selected expression; A/O/B are speech visemes that an
@@ -365,6 +369,47 @@ class ProjectState extends ChangeNotifier {
   void setActorAnimation(String id, String animationId) {
     actors.firstWhere((a) => a.id == id).animationId = animationId;
     if (id == selectedActorId && animations.any((a) => a.id == animationId)) selectedAnimationId = animationId;
+    notifyListeners();
+  }
+
+  void setOnionSkin(bool value) {
+    onionSkin = value;
+    notifyListeners();
+  }
+
+  void setPlaybackFps(int fps) {
+    playbackFps = fps.clamp(8, 60).toInt();
+    status = 'Preview timing: $playbackFps fps';
+    notifyListeners();
+  }
+
+  /// Adds animator-friendly timing to the currently selected clip without
+  /// replacing existing poses. This is intentionally non-destructive: it
+  /// only changes easing and, when useful, adds small timing accents.
+  void applyAnimeMotionPreset(String preset) {
+    final clip = selectedAnimation;
+    if (clip.tracks.isEmpty) {
+      status = 'Add at least one pose before applying a motion preset';
+      notifyListeners();
+      return;
+    }
+    for (final track in clip.tracks.values) {
+      if (track.keys.isEmpty) continue;
+      for (final key in track.keys) {
+        key.easing = switch (preset) {
+          'anticipation' => KeyframeEasing.easeIn,
+          'impact' => KeyframeEasing.impact,
+          'settle' => KeyframeEasing.easeOut,
+          _ => KeyframeEasing.smooth,
+        };
+      }
+    }
+    status = switch (preset) {
+      'anticipation' => 'Anticipation timing applied',
+      'impact' => 'Impact timing applied',
+      'settle' => 'Follow-through timing applied',
+      _ => 'Motion timing applied',
+    };
     notifyListeners();
   }
 

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../models/rig.dart';
+import '../services/animation_rig_sync.dart';
 
 class ShinraViewport extends StatelessWidget {
   const ShinraViewport({super.key, required this.project, this.showBones = true, this.poseMode = false});
@@ -207,6 +208,10 @@ class _CharacterPainter extends CustomPainter {
     canvas.translate(center.dx, center.dy);
     canvas.scale(p.camera.zoom);
     canvas.rotate(p.camera.rotation);
+    if (showBones && p.onionSkin && p.selectedAnimation.tracks.isNotEmpty) {
+      _drawOnionSkeleton(canvas, p, p.playhead - (p.onionBefore / p.playbackFps), true);
+      _drawOnionSkeleton(canvas, p, p.playhead + (p.onionAfter / p.playbackFps), false);
+    }
     for (final actor in p.actors) {
       final skipBody = actor.id == p.selectedActorId && actor.useImageAsBody && actor.importedImagePath.isNotEmpty;
       canvas.save();
@@ -216,6 +221,54 @@ class _CharacterPainter extends CustomPainter {
       canvas.restore();
     }
     canvas.restore();
+  }
+
+  void _drawOnionSkeleton(Canvas canvas, ProjectState p, double time, bool before) {
+    final map = {for (final part in p.parts) part.id: part};
+    final poses = AnimationRigSync.interpolateAt(
+      animation: p.selectedAnimation,
+      time: time,
+      parts: map,
+    );
+    final bones = {for (final b in p.bones) b.id: b};
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..color = (before ? const Color(0xFF49A6FF) : const Color(0xFFFFC94A)).withOpacity(.28);
+
+    Offset point(String id) {
+      final b = bones[id];
+      if (b == null) return Offset.zero;
+      final pose = poses[id];
+      var x = pose?.x ?? b.x;
+      var y = pose?.y ?? b.y;
+      var parent = b.parentId;
+      var guard = 0;
+      while (parent != null && guard++ < 20) {
+        final par = bones[parent];
+        if (par == null) break;
+        final pp = poses[parent];
+        final pr = pp?.rotation ?? par.rotation;
+        final px = pp?.x ?? par.x;
+        final py = pp?.y ?? par.y;
+        final cs = math.cos(pr), sn = math.sin(pr);
+        final nx = px + x * cs - y * sn;
+        final ny = py + x * sn + y * cs;
+        x = nx;
+        y = ny;
+        parent = par.parentId;
+      }
+      return Offset(x, y);
+    }
+
+    for (final b in p.bones) {
+      if (b.parentId == null) continue;
+      final a = point(b.id);
+      final parent = point(b.parentId!);
+      canvas.drawLine(parent, a, paint);
+      canvas.drawCircle(a, 3.5, paint);
+    }
   }
 
   void _paintActor(Canvas canvas, ProjectState p, SceneActor actor, bool showActorBones, bool skipBody) {

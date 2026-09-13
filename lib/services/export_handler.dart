@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'video_export.dart';
 import 'gif_export.dart';
 import '../models/rig.dart';
-import 'dart:io';
 
 /// Central export handler that manages MP4, GIF, and PNG exports.
 class ExportHandler {
@@ -119,7 +118,7 @@ class _ExportDialogState extends State<ExportDialog> {
           fps: fps,
           onProgress: (current, total) {
             setState(() {
-              progress = current / total;
+              progress = total <= 0 ? 0 : (current / total).clamp(0.0, 1.0);
               status = 'Rendering frame $current / $total';
             });
           },
@@ -131,7 +130,7 @@ class _ExportDialogState extends State<ExportDialog> {
           fps: fps,
           onProgress: (current, total) {
             setState(() {
-              progress = current / total;
+              progress = total <= 0 ? 0 : (current / total).clamp(0.0, 1.0);
               status = 'Rendering frame $current / $total';
             });
           },
@@ -148,7 +147,7 @@ class _ExportDialogState extends State<ExportDialog> {
           fps: fps,
           onProgress: (current, total) {
             setState(() {
-              progress = current / total;
+              progress = total <= 0 ? 0 : (current / total).clamp(0.0, 1.0);
               status = 'Rendering frame $current / $total';
             });
           },
@@ -156,7 +155,9 @@ class _ExportDialogState extends State<ExportDialog> {
       }
 
       if (mounted) {
-        Navigator.pop(context);
+        // Keep the export dialog mounted while showing the result dialog.
+        // Popping first would leave this State attached to a deactivated
+        // route and can make showDialog fail on slower devices.
         _showSuccessDialog(resultPath);
       }
     } catch (e) {
