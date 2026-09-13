@@ -49,6 +49,7 @@ class ProjectStore {
       ],
       'fx': [for (final e in p.fx) {'id': e.id, 'name': e.name, 'time': e.time, 'clip': e.clipId}],
       'audio': [for (final e in p.audio) {'id': e.id, 'name': e.name, 'time': e.time, 'clip': e.clipId}],
+      'dialogue': [for (final d in p.dialogue) {'id': d.id, 'actor': d.actorId, 'text': d.text, 'time': d.time, 'duration': d.duration, 'clip': d.clipId}],
     };
     await prefs.setString(key, jsonEncode(data));
     p.status = 'Project saved';
@@ -120,6 +121,7 @@ class ProjectStore {
     }
     p.fx..clear()..addAll([for (final item in (d['fx'] as List? ?? const [])) FxEvent(id: item['id'] as String, name: item['name'] as String, time: (item['time'] as num).toDouble(), clipId: item['clip'] as String)]);
     p.audio..clear()..addAll([for (final item in (d['audio'] as List? ?? const [])) AudioCue(id: item['id'] as String, name: item['name'] as String, time: (item['time'] as num).toDouble(), clipId: item['clip'] as String)]);
+    p.dialogue..clear()..addAll([for (final item in (d['dialogue'] as List? ?? const [])) DialogueCue(id: item['id'] as String, actorId: item['actor'] as String, text: item['text'] as String, time: (item['time'] as num).toDouble(), duration: (item['duration'] as num).toDouble(), clipId: item['clip'] as String)]);
     if (d['selectedAnimationId'] != null && p.animations.any((c) => c.id == d['selectedAnimationId'])) p.selectedAnimationId = d['selectedAnimationId'] as String;
     p.status = 'Project loaded';
     p.notifyListeners();

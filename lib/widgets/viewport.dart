@@ -30,6 +30,8 @@ class ShinraViewport extends StatelessWidget {
                 behavior: HitTestBehavior.translucent,
                 onPanUpdate: poseMode ? (d) => _dragBone(project, d.delta) : null,
                 child: Stack(children: [
+                  if (project.background == 'Custom' && project.sceneBackgroundImagePath.isNotEmpty)
+                    Positioned.fill(child: Image.file(File(project.sceneBackgroundImagePath), fit: BoxFit.cover)),
                   CustomPaint(painter: _CharacterPainter(project, showBones), size: Size.infinite),
                   if (project.useImageAsBody && project.importedImagePath.isNotEmpty)
                     _ImageBody(project: project),
@@ -206,18 +208,17 @@ class _CharacterPainter extends CustomPainter {
     canvas.scale(p.camera.zoom);
     canvas.rotate(p.camera.rotation);
     for (final actor in p.actors) {
-      final skipProc = actor.id == p.selectedActorId && actor.useImageAsBody && actor.importedImagePath.isNotEmpty;
-      if (skipProc) continue;
+      final skipBody = actor.id == p.selectedActorId && actor.useImageAsBody && actor.importedImagePath.isNotEmpty;
       canvas.save();
       canvas.translate(actor.offsetX, actor.offsetY);
       canvas.scale(actor.facing, 1);
-      _paintActor(canvas, p, actor, showBones && actor.id == p.selectedActorId);
+      _paintActor(canvas, p, actor, showBones && actor.id == p.selectedActorId, skipBody);
       canvas.restore();
     }
     canvas.restore();
   }
 
-  void _paintActor(Canvas canvas, ProjectState p, SceneActor actor, bool showActorBones) {
+  void _paintActor(Canvas canvas, ProjectState p, SceneActor actor, bool showActorBones, bool skipBody) {
     final bones = {for (final b in actor.bones) b.id: b};
     Offset point(Bone b) {
       var x = b.x, y = b.y;
@@ -247,25 +248,29 @@ class _CharacterPainter extends CustomPainter {
     final root = bones['root']!;
     final torso = point(bones['torso']!);
     final head = point(bones['head']!);
-    _drawOutfit(canvas, torso, head, actor.outfitStyle, actor.clothesColor);
-    canvas.drawOval(Rect.fromCenter(center: head, width: 88, height: 98), Paint()..color = actor.skinColor);
-    _drawHair(canvas, head, actor.hairStyle, actor.hairColor);
-    _drawFace(canvas, head, actor, actor.expression, p.playhead);
-    final armLEnd = point(bones['arm_l']!) + Offset(math.sin(bones['arm_l']!.rotation + _worldRotation(bones['arm_l']!, bones)) * bones['arm_l']!.length * bones['arm_l']!.scale, -math.cos(bones['arm_l']!.rotation + _worldRotation(bones['arm_l']!, bones)) * bones['arm_l']!.length * bones['arm_l']!.scale);
-    final armREnd = point(bones['arm_r']!) + Offset(math.sin(bones['arm_r']!.rotation + _worldRotation(bones['arm_r']!, bones)) * bones['arm_r']!.length * bones['arm_r']!.scale, -math.cos(bones['arm_r']!.rotation + _worldRotation(bones['arm_r']!, bones)) * bones['arm_r']!.length * bones['arm_r']!.scale);
-    _drawAccessories(canvas, head, torso, armLEnd, armREnd, actor);
-    final limbColor = Color.lerp(actor.skinColor, Colors.black, .25)!;
-    limb(bones['arm_l']!, 24, limbColor);
-    limb(bones['arm_r']!, 24, limbColor);
-    // Hands and feet are separate rig parts, not decoration. Drawing them
-    // from their own bones makes punches, pointing and planted steps read
-    // clearly when the animator keys hand_l/hand_r/foot_l/foot_r.
-    limb(bones['hand_l']!, 16, limbColor);
-    limb(bones['hand_r']!, 16, limbColor);
-    limb(bones['leg_l']!, 30, actor.clothesColor);
-    limb(bones['leg_r']!, 30, actor.clothesColor);
-    limb(bones['foot_l']!, 24, Color.lerp(actor.clothesColor, Colors.black, .35)!);
-    limb(bones['foot_r']!, 24, Color.lerp(actor.clothesColor, Colors.black, .35)!);
+    if (!skipBody) {
+      _drawOutfit(canvas, torso, head, actor.outfitStyle, actor.clothesColor);
+      canvas.drawOval(Rect.fromCenter(center: head, width: 88, height: 98), Paint()..color = actor.skinColor);
+      _drawHair(canvas, head, actor.hairStyle, actor.hairColor);
+      final dlg = p.activeDialogueFor(actor.id);
+      _drawFace(canvas, head, actor, actor.expression, p.playhead, dlg);
+      if (dlg != null) _drawSpeechBubble(canvas, head, dlg.text);
+      final armLEnd = point(bones['arm_l']!) + Offset(math.sin(bones['arm_l']!.rotation + _worldRotation(bones['arm_l']!, bones)) * bones['arm_l']!.length * bones['arm_l']!.scale, -math.cos(bones['arm_l']!.rotation + _worldRotation(bones['arm_l']!, bones)) * bones['arm_l']!.length * bones['arm_l']!.scale);
+      final armREnd = point(bones['arm_r']!) + Offset(math.sin(bones['arm_r']!.rotation + _worldRotation(bones['arm_r']!, bones)) * bones['arm_r']!.length * bones['arm_r']!.scale, -math.cos(bones['arm_r']!.rotation + _worldRotation(bones['arm_r']!, bones)) * bones['arm_r']!.length * bones['arm_r']!.scale);
+      _drawAccessories(canvas, head, torso, armLEnd, armREnd, actor);
+      final limbColor = Color.lerp(actor.skinColor, Colors.black, .25)!;
+      limb(bones['arm_l']!, 24, limbColor);
+      limb(bones['arm_r']!, 24, limbColor);
+      // Hands and feet are separate rig parts, not decoration. Drawing them
+      // from their own bones makes punches, pointing and planted steps read
+      // clearly when the animator keys hand_l/hand_r/foot_l/foot_r.
+      limb(bones['hand_l']!, 16, limbColor);
+      limb(bones['hand_r']!, 16, limbColor);
+      limb(bones['leg_l']!, 30, actor.clothesColor);
+      limb(bones['leg_r']!, 30, actor.clothesColor);
+      limb(bones['foot_l']!, 24, Color.lerp(actor.clothesColor, Colors.black, .35)!);
+      limb(bones['foot_r']!, 24, Color.lerp(actor.clothesColor, Colors.black, .35)!);
+    }
 
     if (showActorBones) {
       for (final b in actor.bones) {
@@ -277,8 +282,8 @@ class _CharacterPainter extends CustomPainter {
         if (b.parentId != null) canvas.drawLine(point(bones[b.parentId]!), a, paint);
       }
       canvas.drawCircle(point(root), 9, Paint()..style = PaintingStyle.stroke..strokeWidth = 2..color = const Color(0xFFD4A73B));
-      _drawFx(canvas, torso, head, p);
     }
+    _drawFx(canvas, torso, head, p);
   }
 
   /// FX added on the timeline previously only sat in a list with a
@@ -343,7 +348,7 @@ class _CharacterPainter extends CustomPainter {
   /// Every expression actually changes the face (brows, eye shape, mouth
   /// curve) instead of only swapping a label ÔÇö previously only "Terrifying"
   /// did anything visible (red eyes), the rest were cosmetic no-ops.
-  void _drawFace(Canvas canvas, Offset head, SceneActor actor, String expression, double timeline) {
+  void _drawFace(Canvas canvas, Offset head, SceneActor actor, String expression, double timeline, DialogueCue? dialogue) {
     double browAngle = 0, browLift = 0, mouthCurve = 0, eyeScale = 1;
     var mouthOpen = false;
     var mouthWidth = 20.0;
@@ -376,16 +381,28 @@ class _CharacterPainter extends CustomPainter {
     }
     // Speech visemes can override the expression while a line is spoken.
     // A = open jaw, O = rounded lips, B = closed lips.
-    switch (actor.mouthShape) {
-      case 'A':
-        mouthOpen = true; mouthWidth = 22; mouthHeight = 20;
-        break;
-      case 'O':
-        mouthOpen = true; mouthWidth = 12; mouthHeight = 19;
-        break;
-      case 'B':
-        mouthOpen = true; mouthWidth = 24; mouthHeight = 5;
-        break;
+    if (dialogue != null) {
+      // Auto-cycle visemes while a dialogue line is active — deterministic
+      // (driven by timeline, not Random()) so exported frames stay
+      // consistent, not real phoneme timing since there's no audio/TTS
+      // analysis here, just a readable "talking" flap.
+      final cyclePos = ((timeline - dialogue.time) / .12).floor() % 3;
+      final shape = ['A', 'B', 'O'][cyclePos];
+      if (shape == 'A') { mouthOpen = true; mouthWidth = 22; mouthHeight = 20; }
+      if (shape == 'O') { mouthOpen = true; mouthWidth = 12; mouthHeight = 19; }
+      if (shape == 'B') { mouthOpen = true; mouthWidth = 24; mouthHeight = 5; }
+    } else {
+      switch (actor.mouthShape) {
+        case 'A':
+          mouthOpen = true; mouthWidth = 22; mouthHeight = 20;
+          break;
+        case 'O':
+          mouthOpen = true; mouthWidth = 12; mouthHeight = 19;
+          break;
+        case 'B':
+          mouthOpen = true; mouthWidth = 24; mouthHeight = 5;
+          break;
+      }
     }
 
     final browPaint = Paint()
@@ -600,6 +617,29 @@ class _CharacterPainter extends CustomPainter {
   }
 
   /// Small procedural extras ÔÇö none tied to any specific character design.
+  /// Speech bubble above the speaking actor's head — doubles as an on-screen
+  /// caption once exported, useful for TikTok/YouTube-style clips.
+  void _drawSpeechBubble(Canvas canvas, Offset head, String text) {
+    final span = TextPainter(
+      text: TextSpan(text: text, style: const TextStyle(color: Colors.black, fontSize: 13, fontWeight: FontWeight.w600)),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout(maxWidth: 160);
+    final w = span.width + 20, h = span.height + 16;
+    final center = head.translate(0, -84 - h / 2);
+    final rect = RRect.fromRectAndRadius(Rect.fromCenter(center: center, width: w, height: h), const Radius.circular(10));
+    final bubble = Paint()..color = Colors.white.withOpacity(.95);
+    canvas.drawRRect(rect, bubble);
+    canvas.drawRRect(rect, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.5..color = Colors.black26);
+    final tail = Path()
+      ..moveTo(head.dx - 8, center.dy + h / 2)
+      ..lineTo(head.dx + 8, center.dy + h / 2)
+      ..lineTo(head.dx, center.dy + h / 2 + 12)
+      ..close();
+    canvas.drawPath(tail, bubble);
+    span.paint(canvas, Offset(center.dx - span.width / 2, center.dy - span.height / 2));
+  }
+
   void _drawAccessories(Canvas canvas, Offset head, Offset torso, Offset handL, Offset handR, SceneActor actor) {
     if (actor.accHeadband) {
       canvas.drawRect(Rect.fromCenter(center: head.translate(0, -26), width: 80, height: 12), Paint()..color = const Color(0xFF2C3448));
@@ -722,6 +762,8 @@ void _drawBackground(Canvas canvas, Size size, String style, String customPath) 
       canvas.drawRect(rect, Paint()..shader = ui.Gradient.linear(Offset(0, 0), Offset(0, size.height), [const Color(0xFFFF8A4D), const Color(0xFF3A2151)]));
       canvas.drawCircle(Offset(size.width / 2, size.height * .42), 60, Paint()..color = const Color(0xFFFFE1A8).withOpacity(.85));
       break;
+    case 'Custom':
+      break; // drawn as a separate Image.file widget layer beneath this canvas — see ShinraViewport
     default: // Void
       canvas.drawRect(rect, Paint()..color = const Color(0xFF090B11));
   }

@@ -34,7 +34,7 @@ class Mp4Exporter {
     void Function(String phase, int current, int total)? onProgress,
   }) async {
     final clip = project.selectedAnimation;
-    final totalFrames = (clip.duration * fps).ceil().clamp(1, 1800);
+    final totalFrames = (clip.duration * fps).ceil().clamp(1, 1800).toInt();
 
     final dir = await getTemporaryDirectory();
     final basename = clip.name.replaceAll(RegExp(r'[^a-zA-Z0-9_]+'), '_');

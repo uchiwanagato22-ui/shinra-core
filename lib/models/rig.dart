@@ -24,7 +24,7 @@ const eyeShapes = ['Round', 'Sharp', 'Sleepy', 'Wide', 'Cat'];
 /// character, on purpose.
 const outfitStyles = ['Hoodie', 'Jacket', 'Robe', 'Dress', 'Tank', 'Armor', 'Cape', 'Suit', 'Tactical Vest', 'Battle Cloak'];
 const accessorySlots = ['glasses', 'headband', 'scarf', 'hat', 'gloves', 'belt'];
-const backgroundStyles = ['Void', 'Forest', 'Rooftop City', 'Rainy City', 'Neon Street', 'Dojo', 'Sunset Sky'];
+const backgroundStyles = ['Void', 'Forest', 'Rooftop City', 'Rainy City', 'Neon Street', 'Dojo', 'Sunset Sky', 'Custom'];
 const weatherStyles = ['Clear', 'Rain', 'Snow'];
 const maxSceneActors = 6;
 
@@ -207,6 +207,22 @@ class AudioCue {
   final String clipId;
 }
 
+/// A line of dialogue attached to one actor at a point on the timeline.
+/// While the playhead is within [time, time + duration], that actor's mouth
+/// cycles open/closed (a simple lip-flap, not real phoneme-accurate lip
+/// sync — there's no audio/TTS timing data here to sync against) and the
+/// text shows as a speech bubble above their head, doubling as an on-screen
+/// caption for exported clips.
+class DialogueCue {
+  DialogueCue({required this.id, required this.actorId, required this.text, required this.time, required this.duration, required this.clipId});
+  final String id;
+  final String actorId;
+  final String text;
+  final double time;
+  final double duration;
+  final String clipId;
+}
+
 Bone makeBone(String id, String name, BoneType type, String? parent, double x, double y, double length, [double rotation = 0]) => Bone(id: id, name: name, type: type, parentId: parent, x: x, y: y, length: length, rotation: rotation);
 
 List<Bone> defaultBones() => [
@@ -260,6 +276,7 @@ class ProjectState extends ChangeNotifier {
   final CameraState camera = CameraState();
   final List<FxEvent> fx = [];
   final List<AudioCue> audio = [];
+  final List<DialogueCue> dialogue = [];
   String selectedBoneId = 'root';
   String selectedPartId = 'body';
   String selectedAnimationId = 'idle';
@@ -737,11 +754,35 @@ class ProjectState extends ChangeNotifier {
   void addFx(String name) { fx.add(FxEvent(id: DateTime.now().microsecondsSinceEpoch.toString(), name: name, time: playhead, clipId: selectedAnimationId)); status = '$name added'; notifyListeners(); }
   void addAudio(String name) { audio.add(AudioCue(id: DateTime.now().microsecondsSinceEpoch.toString(), name: name, time: playhead, clipId: selectedAnimationId)); status = '$name cue added'; notifyListeners(); }
 
+  /// Adds a line of dialogue for [actorId] at the current playhead. Duration
+  /// defaults to a rough reading-pace estimate (~14 characters/second, min
+  /// 0.6s) when not given — not real speech timing, just a usable default
+  /// until real audio is attached.
+  void addDialogue(String actorId, String text, {double? duration}) {
+    final d = duration ?? (text.length / 14).clamp(.6, 8.0);
+    dialogue.add(DialogueCue(id: DateTime.now().microsecondsSinceEpoch.toString(), actorId: actorId, text: text, time: playhead, duration: d, clipId: selectedAnimationId));
+    status = 'Dialogue added for ${d.toStringAsFixed(1)}s';
+    notifyListeners();
+  }
+
+  void removeDialogue(String id) { dialogue.removeWhere((d) => d.id == id); notifyListeners(); }
+
+  /// The dialogue line currently "speaking" for this actor, if any — drives
+  /// both the mouth-flap animation and the on-screen speech bubble.
+  DialogueCue? activeDialogueFor(String actorId) {
+    for (final d in dialogue) {
+      if (d.clipId != selectedAnimationId || d.actorId != actorId) continue;
+      if (playhead >= d.time && playhead <= d.time + d.duration) return d;
+    }
+    return null;
+  }
+
   /// FX/audio belonging to the animation clip currently open — previously fx
   /// and audio were one flat list shared by every clip, so switching clips
   /// still showed/triggered cues that were placed on a different animation.
   List<FxEvent> get activeFx => fx.where((e) => e.clipId == selectedAnimationId).toList();
   List<AudioCue> get activeAudio => audio.where((e) => e.clipId == selectedAnimationId).toList();
+  List<DialogueCue> get activeDialogue => dialogue.where((d) => d.clipId == selectedAnimationId).toList();
 
   /// Called by the UI layer (which owns the actual audio player) whenever
   /// playback crosses an audio cue, so the sound only fires once per pass

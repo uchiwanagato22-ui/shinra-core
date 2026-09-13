@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import 'models/rig.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:cross_file/cross_file.dart';
 import 'services/ai_director.dart';
 import 'services/image_edit_service.dart' as ie;
 import 'package:image/image.dart' as img;
@@ -109,9 +111,80 @@ class _ShellState extends State<Shell> {
             content: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.volume_up, size: 18), const SizedBox(width: 8), Text(name)]),
           ));
         };
-        return Scaffold(body: Row(children: [NavigationRail(selectedIndex: page.index, onDestinationSelected: (i) => setState(() => page = AppPage.values[i]), labelType: NavigationRailLabelType.all, destinations: const [NavigationRailDestination(icon: Icon(Icons.home_outlined), label: Text('Home')), NavigationRailDestination(icon: Icon(Icons.movie_outlined), label: Text('Studio')), NavigationRailDestination(icon: Icon(Icons.groups_outlined), label: Text('Scene')), NavigationRailDestination(icon: Icon(Icons.person_outline), label: Text('Character')), NavigationRailDestination(icon: Icon(Icons.video_library_outlined), label: Text('Library')), NavigationRailDestination(icon: Icon(Icons.account_tree_outlined), label: Text('Rig')), NavigationRailDestination(icon: Icon(Icons.timeline_outlined), label: Text('Animate')), NavigationRailDestination(icon: Icon(Icons.face_outlined), label: Text('Face')), NavigationRailDestination(icon: Icon(Icons.auto_awesome_outlined), label: Text('FX')), NavigationRailDestination(icon: Icon(Icons.videocam_outlined), label: Text('Camera')), NavigationRailDestination(icon: Icon(Icons.audiotrack_outlined), label: Text('Audio')), NavigationRailDestination(icon: Icon(Icons.smart_toy_outlined), label: Text('AI Director')), NavigationRailDestination(icon: Icon(Icons.file_upload_outlined), label: Text('Export'))]), Expanded(child: _page(p))]));
+        final destinations = const [
+          (Icons.home_outlined, 'Home'),
+          (Icons.movie_outlined, 'Studio'),
+          (Icons.groups_outlined, 'Scene'),
+          (Icons.person_outline, 'Character'),
+          (Icons.video_library_outlined, 'Library'),
+          (Icons.account_tree_outlined, 'Rig'),
+          (Icons.timeline_outlined, 'Animate'),
+          (Icons.face_outlined, 'Face'),
+          (Icons.auto_awesome_outlined, 'FX'),
+          (Icons.videocam_outlined, 'Camera'),
+          (Icons.audiotrack_outlined, 'Audio'),
+          (Icons.smart_toy_outlined, 'AI Director'),
+          (Icons.file_upload_outlined, 'Export'),
+        ];
+        return LayoutBuilder(builder: (_, constraints) {
+          // Phone-width screens get a drawer instead of a side rail — 13
+          // destinations squeezed into a narrow rail were unreadable on a
+          // phone (confirmed by an actual on-device test, not a guess).
+          final narrow = constraints.maxWidth < 700;
+          if (narrow) {
+            return Scaffold(
+              appBar: AppBar(
+                title: Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 4, height: 20, color: Palette.crimson, margin: const EdgeInsets.only(right: 10)), Text(destinations[page.index].$2)]),
+                backgroundColor: Palette.panel,
+              ),
+              drawer: Drawer(
+                backgroundColor: Palette.panel,
+                child: ListView(children: [
+                  const DrawerHeader(child: Text('SHINRA CORE', style: TextStyle(color: Palette.crimson, fontWeight: FontWeight.w800, fontSize: 20))),
+                  for (var i = 0; i < destinations.length; i++)
+                    ListTile(
+                      selected: i == page.index,
+                      selectedColor: Palette.crimson,
+                      leading: Icon(destinations[i].$1),
+                      title: Text(destinations[i].$2),
+                      onTap: () { setState(() => page = AppPage.values[i]); Navigator.pop(context); },
+                    ),
+                ]),
+              ),
+              body: _page(p),
+            );
+          }
+          return Scaffold(body: Row(children: [
+            NavigationRail(
+              selectedIndex: page.index,
+              onDestinationSelected: (i) => setState(() => page = AppPage.values[i]),
+              labelType: NavigationRailLabelType.all,
+              destinations: [for (final d in destinations) NavigationRailDestination(icon: Icon(d.$1), label: Text(d.$2))],
+            ),
+            Expanded(child: _page(p)),
+          ]));
+        });
       });
   Widget _page(ProjectState p) { switch (page) { case AppPage.home: return HomePage(onOpen: (x) => setState(() => page = x)); case AppPage.studio: return StudioPage(p: p, onPlay: () => togglePlay(p)); case AppPage.scene: return ScenePage(p: p, onPlay: () => togglePlay(p)); case AppPage.character: return CharacterPage(p: p); case AppPage.library: return LibraryPage(p: p, onUse: () => setState(() => page = AppPage.animate)); case AppPage.rig: return RigPage(p: p); case AppPage.animate: return AnimatePage(p: p, onPlay: () => togglePlay(p)); case AppPage.face: return FacePage(p: p); case AppPage.fx: return FxPage(p: p); case AppPage.camera: return CameraPage(p: p); case AppPage.audio: return AudioPage(p: p); case AppPage.ai: return AiPage(p: p, onPlaySequence: (ids) => playQueue(p, ids)); case AppPage.export: return ExportPage(p: p); } }
+}
+
+/// A viewport/canvas next to a fixed-width control panel — side by side on
+/// wide screens, stacked on phone width. Several pages used a bare Row with
+/// a fixed-width SizedBox sidebar, which on an actual phone (~380px) left
+/// the Expanded side squeezed to almost nothing — confirmed on a real
+/// device, not a guess.
+class _SplitView extends StatelessWidget {
+  const _SplitView({required this.primary, required this.sidebar, this.sidebarWidth = 320});
+  final Widget primary;
+  final Widget sidebar;
+  final double sidebarWidth;
+  @override
+  Widget build(BuildContext c) => LayoutBuilder(builder: (_, constraints) {
+        if (constraints.maxWidth < 700) {
+          return Column(children: [Expanded(flex: 3, child: primary), const SizedBox(height: 12), SizedBox(height: 320, child: sidebar)]);
+        }
+        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: primary), const SizedBox(width: 16), SizedBox(width: sidebarWidth, child: sidebar)]);
+      });
 }
 
 class Top extends StatelessWidget {
@@ -157,6 +230,13 @@ class ScenePage extends StatefulWidget {
 
 class _ScenePageState extends State<ScenePage> {
   final picker = ImagePicker();
+  final dialogueCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    dialogueCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext c) {
@@ -169,7 +249,7 @@ class _ScenePageState extends State<ScenePage> {
           const SizedBox(height: 8),
           _Transport(p: p, onPlay: widget.onPlay),
         ]))),
-        SizedBox(width: 320, child: CardBox(child: ListView(children: [
+        SizedBox(width: MediaQuery.of(c).size.width < 700 ? 150 : 320, child: CardBox(child: ListView(children: [
           const Text('SCENE PRESETS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 8, children: [
@@ -185,7 +265,7 @@ class _ScenePageState extends State<ScenePage> {
           OutlinedButton.icon(
             onPressed: () async {
               final x = await picker.pickImage(source: ImageSource.gallery);
-              if (x != null) { setState(() { p.sceneBackgroundImagePath = x.path; p.status = 'Scene background imported'; p.notifyListeners(); }); }
+              if (x != null) { setState(() { p.sceneBackgroundImagePath = x.path; p.background = 'Custom'; p.status = 'Scene background imported'; p.notifyListeners(); }); }
             },
             icon: const Icon(Icons.landscape),
             label: const Text('Import scene background'),
@@ -213,6 +293,31 @@ class _ScenePageState extends State<ScenePage> {
               items: [for (final a in p.animations) DropdownMenuItem(value: a.id, child: Text(a.name))],
               onChanged: (v) { if (v != null) p.setActorAnimation(p.selectedActorId, v); },
             ),
+            const Divider(height: 24),
+            const Text('DIALOGUE', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+            const SizedBox(height: 4),
+            Text('Mouth flaps automatically while a line is playing (not real lip-sync — no audio timing here yet). Shows as a caption bubble.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: TextField(controller: dialogueCtrl, decoration: const InputDecoration(hintText: 'What do they say?', isDense: true))),
+              const SizedBox(width: 6),
+              IconButton(
+                icon: const Icon(Icons.chat_bubble_outline),
+                onPressed: () {
+                  if (dialogueCtrl.text.trim().isEmpty) return;
+                  p.addDialogue(p.selectedActorId, dialogueCtrl.text.trim());
+                  dialogueCtrl.clear();
+                },
+              ),
+            ]),
+            for (final d in p.activeDialogue.where((d) => d.actorId == p.selectedActorId))
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.chat_bubble, size: 16),
+                title: Text(d.text, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text('${d.time.toStringAsFixed(1)}s → ${(d.time + d.duration).toStringAsFixed(1)}s'),
+                trailing: IconButton(icon: const Icon(Icons.close, size: 16), onPressed: () => p.removeDialogue(d.id)),
+              ),
           ],
           const SizedBox(height: 8),
           Text(p.status, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
@@ -222,7 +327,7 @@ class _ScenePageState extends State<ScenePage> {
   }
 }
 
-class StudioPage extends StatelessWidget { const StudioPage({super.key, required this.p, required this.onPlay}); final ProjectState p; final VoidCallback onPlay; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'Studio', subtitle: 'Scene viewport + timeline'), Expanded(child: Row(children: [Expanded(flex: 7, child: CardBox(child: Column(children: [Expanded(child: ShinraViewport(project: p)), const SizedBox(height: 10), _Transport(p: p, onPlay: onPlay)]))), const SizedBox(width: 14), SizedBox(width: 270, child: _Inspector(p: p))])),]); }
+class StudioPage extends StatelessWidget { const StudioPage({super.key, required this.p, required this.onPlay}); final ProjectState p; final VoidCallback onPlay; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'Studio', subtitle: 'Scene viewport + timeline'), Expanded(child: Row(children: [Expanded(flex: 7, child: CardBox(child: Column(children: [Expanded(child: ShinraViewport(project: p)), const SizedBox(height: 10), _Transport(p: p, onPlay: onPlay)]))), const SizedBox(width: 14), SizedBox(width: MediaQuery.of(c).size.width < 700 ? 150 : 270, child: _Inspector(p: p))])),]); }
 class _KeyframeTimeline extends StatelessWidget {
   const _KeyframeTimeline({required this.p, this.boneId});
   final ProjectState p;
@@ -525,7 +630,7 @@ class _RigPageState extends State<RigPage> {
           const SizedBox(height: 8),
           Expanded(child: ShinraViewport(project: p, poseMode: poseMode)),
         ]))),
-        SizedBox(width: 320, child: CardBox(child: ListView(children: [
+        SizedBox(width: MediaQuery.of(c).size.width < 700 ? 150 : 320, child: CardBox(child: ListView(children: [
           FilledButton.icon(onPressed: p.autoRig, icon: const Icon(Icons.refresh), label: const Text('Rebuild Auto-Rig')),
           const SizedBox(height: 12),
           Text('Bone: ${p.selectedBone.name}', style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -543,7 +648,7 @@ class _RigPageState extends State<RigPage> {
           for (final b in p.bones) ListTile(selected: b.id == p.selectedBoneId, leading: const Icon(Icons.circle, size: 10), title: Text(b.name), subtitle: Text(b.parentId == null ? 'Root' : '↳ ${b.parentId}'), onTap: () => p.selectBone(b.id)),
           const Divider(),
           const Text('PART BINDING', style: TextStyle(fontWeight: FontWeight.w800)),
-          for (final part in p.parts) DropdownButtonFormField<String>(value: part.boneId, decoration: InputDecoration(labelText: part.name), items: [for (final b in p.bones) DropdownMenuItem(value: b.id, child: Text(b.name))], onChanged: (v) { if (v != null) p.bindPart(part.id, v); }),
+          for (final part in p.parts) DropdownButtonFormField<String>(key: ValueKey(part.id), value: part.boneId, decoration: InputDecoration(labelText: part.name), items: [for (final b in p.bones) DropdownMenuItem(value: b.id, child: Text(b.name))], onChanged: (v) { if (v != null) p.bindPart(part.id, v); }),
         ]))),
       ])),
     ]);
@@ -677,9 +782,52 @@ class FacePage extends StatelessWidget {
 }
 class FxPage extends StatelessWidget { const FxPage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => _ListTool(title: 'FX Studio', subtitle: 'Combat impacts and cinematic effects', items: ['Impact', 'Dust', 'Speed Lines', 'Energy Burst', 'Smoke', 'Spark', 'Camera Shake'], onAdd: p.addFx, entries: p.activeFx.map((e) => '${e.name}  •  ${e.time.toStringAsFixed(2)}s').toList()); }
 class AudioPage extends StatelessWidget { const AudioPage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => _ListTool(title: 'Audio', subtitle: 'Timeline cues for SFX and music', items: ['Impact SFX', 'Footsteps', 'Whoosh', 'Voice Cue', 'Music Start', 'Music Stop'], onAdd: p.addAudio, entries: p.activeAudio.map((e) => '${e.name}  •  ${e.time.toStringAsFixed(2)}s').toList()); }
-class _ListTool extends StatelessWidget { const _ListTool({required this.title, required this.subtitle, required this.items, required this.onAdd, required this.entries}); final String title, subtitle; final List<String> items, entries; final void Function(String) onAdd; @override Widget build(BuildContext c) => Column(children: [Top(title: title, subtitle: subtitle), Expanded(child: Row(children: [Expanded(child: CardBox(child: ListView(children: [for (final x in items) ListTile(leading: const Icon(Icons.add_circle_outline), title: Text(x), trailing: FilledButton(onPressed: () => onAdd(x), child: const Text('Add')))]))), SizedBox(width: 300, child: CardBox(child: ListView(children: [const Text('TIMELINE EVENTS', style: TextStyle(fontWeight: FontWeight.w800)), const SizedBox(height: 12), for (final x in entries) ListTile(title: Text(x))])))]))]); }
+class _ListTool extends StatelessWidget {
+  const _ListTool({required this.title, required this.subtitle, required this.items, required this.onAdd, required this.entries});
+  final String title, subtitle;
+  final List<String> items, entries;
+  final void Function(String) onAdd;
 
-class CameraPage extends StatelessWidget { const CameraPage({super.key, required this.p}); final ProjectState p; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'Camera', subtitle: 'Cinematic framing and motion'), Expanded(child: Row(children: [Expanded(child: CardBox(child: ShinraViewport(project: p, showBones: false))), SizedBox(width: 320, child: CardBox(child: ListView(children: [_Num('X', p.camera.x, (v) => p.setCamera(x: v)), _Num('Y', p.camera.y, (v) => p.setCamera(y: v)), _Num('Zoom', p.camera.zoom, (v) => p.setCamera(zoom: v)), _Num('Rotation', p.camera.rotation, (v) => p.setCamera(rotation: v)), FilledButton(onPressed: () => p.setCamera(x: 0, y: 0, zoom: 1, rotation: 0), child: const Text('Reset Camera'))])))]))]); }
+  @override
+  Widget build(BuildContext c) => Column(children: [
+        Top(title: title, subtitle: subtitle),
+        Expanded(
+          child: LayoutBuilder(builder: (_, constraints) {
+            final addPanel = CardBox(child: ListView(children: [for (final x in items) ListTile(leading: const Icon(Icons.add_circle_outline), title: Text(x), trailing: FilledButton(onPressed: () => onAdd(x), child: const Text('Add')))]));
+            final eventsPanel = CardBox(child: ListView(children: [const Text('TIMELINE EVENTS', style: TextStyle(fontWeight: FontWeight.w800)), const SizedBox(height: 12), for (final x in entries) ListTile(title: Text(x))]));
+            // Side-by-side needs real room for the fixed-width events panel —
+            // a phone-width screen stacks them instead, or the "Add" list
+            // gets squeezed to nothing (confirmed on an actual device: the
+            // add buttons were invisible, only the empty events panel showed).
+            if (constraints.maxWidth < 700) {
+              return Column(children: [Expanded(child: addPanel), const SizedBox(height: 12), SizedBox(height: 220, child: eventsPanel)]);
+            }
+            return Row(children: [Expanded(child: addPanel), const SizedBox(width: 12), SizedBox(width: 300, child: eventsPanel)]);
+          }),
+        ),
+      ]);
+}
+
+class CameraPage extends StatelessWidget {
+  const CameraPage({super.key, required this.p});
+  final ProjectState p;
+  @override
+  Widget build(BuildContext c) => Column(children: [
+        const Top(title: 'Camera', subtitle: 'Cinematic framing and motion'),
+        Expanded(
+          child: _SplitView(
+            primary: CardBox(child: ShinraViewport(project: p, showBones: false)),
+            sidebar: CardBox(child: ListView(children: [
+              _Num('X', p.camera.x, (v) => p.setCamera(x: v)),
+              _Num('Y', p.camera.y, (v) => p.setCamera(y: v)),
+              _Num('Zoom', p.camera.zoom, (v) => p.setCamera(zoom: v)),
+              _Num('Rotation', p.camera.rotation, (v) => p.setCamera(rotation: v)),
+              FilledButton(onPressed: () => p.setCamera(x: 0, y: 0, zoom: 1, rotation: 0), child: const Text('Reset Camera')),
+            ])),
+          ),
+        ),
+      ]);
+}
 
 
 class AiPage extends StatefulWidget {
@@ -977,7 +1125,13 @@ class _ExportPageState extends State<ExportPage> {
                   ]),
                   if (resultPath != null) ...[
                     const SizedBox(height: 14),
-                    SelectableText('Saved to:\n$resultPath', style: const TextStyle(fontSize: 12)),
+                    FilledButton.icon(
+                      onPressed: () => SharePlus.instance.share(ShareParams(files: [XFile(resultPath!)], text: 'Made with SHINRA CORE')),
+                      icon: const Icon(Icons.ios_share),
+                      label: const Text('Share / Save this file'),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('The export is saved in a private app folder, invisible to your file manager or gallery — tap Share to actually get it onto your device (save to Files, Photos, send via any app).', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
                   ],
                   const SizedBox(height: 20),
                   Text(
