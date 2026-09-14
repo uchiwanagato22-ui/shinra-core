@@ -5,10 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'models/rig.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show rootBundle, Clipboard, ClipboardData;
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:cross_file/cross_file.dart';
 import 'services/ai_director.dart';
 import 'services/image_edit_service.dart' as ie;
 import 'package:image/image.dart' as img;
@@ -1151,13 +1149,15 @@ class _ExportPageState extends State<ExportPage> {
                   ]),
                   if (resultPath != null) ...[
                     const SizedBox(height: 14),
-                    FilledButton.icon(
-                      onPressed: () => SharePlus.instance.share(ShareParams(files: [XFile(resultPath!)], text: 'Made with SHINRA CORE')),
-                      icon: const Icon(Icons.ios_share),
-                      label: const Text('Partager / enregistrer ce fichier'),
+                    SelectableText('Enregistré ici :\n$resultPath', style: const TextStyle(fontSize: 12)),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () { Clipboard.setData(ClipboardData(text: resultPath!)); ScaffoldMessenger.of(c).showSnackBar(const SnackBar(content: Text('Chemin copié'))); },
+                      icon: const Icon(Icons.copy),
+                      label: const Text('Copier le chemin'),
                     ),
                     const SizedBox(height: 8),
-                    Text('The export is saved in a private app folder, invisible to your file manager or gallery — tap Share to actually get it onto your device (save to Files, Photos, send via any app).', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
+                    Text('Sur Windows/macOS/Linux : sauvegardé directement dans ton dossier Téléchargements. Sur Android : dossier privé de l\'app (pas de plugin de partage supplémentaire pour éviter le conflit de version qui cassait le build Windows) — utilise un gestionnaire de fichiers avec accès aux dossiers d\'app, ou colle le chemin.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
                   ],
                   const SizedBox(height: 20),
                   Text(

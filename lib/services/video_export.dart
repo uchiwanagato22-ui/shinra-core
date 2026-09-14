@@ -62,7 +62,12 @@ class Mp4Exporter {
     }
 
     // --- Phase 2: real H.264 encode ---
-    final outFile = File('${dir.path}/shinra_${basename}_${DateTime.now().millisecondsSinceEpoch}.mp4');
+    // Frame-capture workspace stays in temp (intermediate files only). The
+    // final .mp4 goes to Downloads when available (Windows/macOS/Linux via
+    // path_provider) so it's somewhere the user can actually find it —
+    // Android has no generic Downloads path this way, falls back to temp.
+    final outDir = await getDownloadsDirectory() ?? dir;
+    final outFile = File('${outDir.path}/shinra_${basename}_${DateTime.now().millisecondsSinceEpoch}.mp4');
     onProgress?.call('encode', 0, 1);
     final cmd = '-y -framerate $fps -i "${framesDir.path}/frame_%05d.png" '
         '-c:v libx264 -pix_fmt yuv420p -movflags +faststart "${outFile.path}"';

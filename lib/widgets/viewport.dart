@@ -148,6 +148,18 @@ class _ImagePartsPainter extends CustomPainter {
     final iw = image.width.toDouble(), ih = image.height.toDouble();
     final paint = Paint()..filterQuality = FilterQuality.medium;
 
+    // Same squash & stretch as the drawn-body renderer — the imported/drawn
+    // image has to react to an Impact FX exactly like the procedural body
+    // does, otherwise the effect would only work for some character types.
+    final torsoBone = bones['torso'];
+    if (torsoBone != null) {
+      final tw = _worldTransform(torsoBone, bones);
+      final squash = squashFactor(p, p.selectedActor);
+      canvas.translate(tw.dx, tw.dy);
+      canvas.scale(squash.sx, squash.sy);
+      canvas.translate(-tw.dx, -tw.dy);
+    }
+
     void drawPiece(Rect crop, String boneId, double partScale) {
       final bone = bones[boneId];
       if (bone == null) return;
@@ -249,6 +261,16 @@ class _CharacterPainter extends CustomPainter {
     final torso = point(bones['torso']!);
     final head = point(bones['head']!);
     if (!skipBody) {
+      // Signature move: the body squashes/stretches automatically around an
+      // Impact FX on this actor — classic squash & stretch, but nobody has
+      // to hand-key it. Anticipation stretch just before, hard squash at the
+      // hit, springy rebound after — the "anime punch" feel other tools
+      // (MiniMuse, Anime Pose Creator, even CapCut) don't do at the rig level.
+      final squash = _squashFactor(p, actor);
+      canvas.save();
+      canvas.translate(torso.dx, torso.dy);
+      canvas.scale(squash.sx, squash.sy);
+      canvas.translate(-torso.dx, -torso.dy);
       _drawOutfit(canvas, torso, head, actor.outfitStyle, actor.clothesColor);
       canvas.drawOval(Rect.fromCenter(center: head, width: 88, height: 98), Paint()..color = actor.skinColor);
       _drawHair(canvas, head, actor.hairStyle, actor.hairColor);
@@ -270,6 +292,7 @@ class _CharacterPainter extends CustomPainter {
       limb(bones['leg_r']!, 30, actor.clothesColor);
       limb(bones['foot_l']!, 24, Color.lerp(actor.clothesColor, Colors.black, .35)!);
       limb(bones['foot_r']!, 24, Color.lerp(actor.clothesColor, Colors.black, .35)!);
+      canvas.restore();
     }
 
     if (showActorBones) {
@@ -687,6 +710,8 @@ class _CharacterPainter extends CustomPainter {
     return r;
   }
 
+
+
   @override
   bool shouldRepaint(covariant _CharacterPainter old) => true;
 }
@@ -779,4 +804,31 @@ Offset _shakeOffset(ProjectState p) {  const window = 0.4;
     return Offset(math.sin(phase) * amp, math.cos(phase * 1.3) * amp);
   }
   return Offset.zero;
+}
+
+/// Deterministic (playhead-driven, not Random()) squash & stretch curve
+/// around an active "Impact" FX on this actor: a light stretch just before
+/// (anticipation), a hard squash right at the hit, then a springy
+/// overshoot/rebound back to normal — the classic animation principle,
+/// applied automatically so nobody has to hand-key scale keyframes for it.
+/// Top-level (not a painter method) so both the drawn-body painter and the
+/// imported/drawn-image painter apply the exact same deformation — it needs
+/// to look identical no matter which of the three character types is active.
+({double sx, double sy}) squashFactor(ProjectState p, SceneActor actor) {
+  for (final e in p.activeFx) {
+    if (e.name != 'Impact') continue;
+    const window = .4;
+    final t = (p.playhead - e.time) / window;
+    if (t < -.12 || t > 1) continue;
+    if (t < 0) {
+      // anticipation: slight stretch leading into the hit
+      final a = (1 + t / .12).clamp(0.0, 1.0);
+      return (sx: 1 - .08 * a, sy: 1 + .12 * a);
+    }
+    // squash on impact, damped spring back to 1.0
+    final decay = math.exp(-t * 6);
+    final wobble = math.sin(t * 22) * decay;
+    return (sx: 1 + .22 * decay - wobble * .05, sy: 1 - .28 * decay + wobble * .05);
+  }
+  return (sx: 1.0, sy: 1.0);
 }

@@ -51,7 +51,11 @@ class GifExporter {
 
     if (base == null) throw Exception('Nothing captured — is the export viewport actually on screen?');
     final gifBytes = img.encodeGif(base);
-    final dir = await getTemporaryDirectory();
+    // Downloads is a real, user-visible folder (works on Windows/macOS/
+    // Linux via path_provider — no extra plugin). Android doesn't expose a
+    // generic Downloads path this way, so it falls back to the app's
+    // private temp folder there, same as before.
+    final dir = await getDownloadsDirectory() ?? await getTemporaryDirectory();
     if (!await dir.exists()) await dir.create(recursive: true);
     final file = File('${dir.path}/shinra_${clip.name.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.gif');
     await file.writeAsBytes(gifBytes);
