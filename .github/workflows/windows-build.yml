@@ -35,15 +35,38 @@ jobs:
         continue-on-error: true
 
       - name: Build Windows release
-        run: flutter build windows --release
+        shell: powershell
+        run: |
+          $env:CL = '/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS'
+          flutter build windows --release
+
+      - name: Verify Windows build
+        shell: powershell
+        run: |
+          if (-not (Test-Path 'build/windows/x64/runner/Release')) {
+            Write-Error 'Windows release folder was not created.'
+            exit 1
+          }
+
+          Write-Host 'Windows release successfully created.'
+          Get-ChildItem 'build/windows/x64/runner/Release' -Recurse |
+            Select-Object FullName, Length
 
       - name: Create ZIP
         shell: powershell
         run: |
+          if (Test-Path 'shinra-core-windows.zip') {
+            Remove-Item 'shinra-core-windows.zip' -Force
+          }
+
           Compress-Archive `
             -Path 'build/windows/x64/runner/Release/*' `
             -DestinationPath 'shinra-core-windows.zip' `
             -Force
+
+          Write-Host 'ZIP successfully created.'
+          Get-Item 'shinra-core-windows.zip' |
+            Select-Object FullName, Length
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
