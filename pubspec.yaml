@@ -16,7 +16,6 @@ dependencies:
   ffmpeg_kit_flutter_new: ^4.6.0
   google_fonts: ^6.2.1
   share_plus: ^10.1.4
-  cross_file: ^0.3.4+2
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -31,5 +30,3 @@ flutter:
     - assets/audio/
     - assets/library/
     - assets/starter_characters/
-    - assets/animation_assets/
-    - assets/test_images/

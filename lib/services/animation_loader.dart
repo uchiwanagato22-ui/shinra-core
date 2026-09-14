@@ -2,23 +2,6 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../models/rig.dart';
 
-/// Animation files were authored with descriptive left/right names while the
-/// live rig uses compact IDs. Keep both formats compatible so every supplied
-/// animation actually drives the character.
-String _canonicalBoneId(String id) {
-  const aliases = <String, String>{
-    'arm_left': 'arm_l',
-    'arm_right': 'arm_r',
-    'hand_left': 'hand_l',
-    'hand_right': 'hand_r',
-    'leg_left': 'leg_l',
-    'leg_right': 'leg_r',
-    'foot_left': 'foot_l',
-    'foot_right': 'foot_r',
-  };
-  return aliases[id] ?? id;
-}
-
 /// Load animations from JSON asset files
 class AnimationLoader {
   /// Load animation by ID from assets
@@ -39,7 +22,7 @@ class AnimationLoader {
       final tracks = data['tracks'] as Map<String, dynamic>?;
       if (tracks != null) {
         tracks.forEach((boneName, keyframesData) {
-          final track = clip.track(_canonicalBoneId(boneName));
+          final track = clip.track(boneName);
           if (keyframesData is List) {
             for (var kf in keyframesData) {
               track.upsert(PoseKeyframe(

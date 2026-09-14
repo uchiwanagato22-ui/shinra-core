@@ -98,33 +98,7 @@ class _ShellState extends State<Shell> {
   AppPage page = AppPage.home; Timer? timer;
   final audioCues = AudioCueService();
   @override void dispose() { timer?.cancel(); audioCues.dispose(); super.dispose(); }
-  void togglePlay(ProjectState p) {
-    if (p.playing) {
-      timer?.cancel();
-      p.playing = false;
-      p.status = 'Paused';
-      p.notifyListeners();
-      return;
-    }
-    p.playing = true;
-    p.status = 'Playing';
-    p.notifyListeners();
-    timer?.cancel();
-    final fps = p.playbackFps.clamp(8, 60);
-    timer = Timer.periodic(Duration(microseconds: (1000000 / fps).round()), (_) {
-      if (!mounted || !p.playing) return;
-      final step = 1 / fps;
-      final next = p.playhead + step;
-      if (next >= p.selectedAnimation.duration && !p.selectedAnimation.loop) {
-        if (p.advanceQueue()) return;
-        p.playing = false;
-        timer?.cancel();
-        p.setPlayhead(p.selectedAnimation.duration);
-      } else {
-        p.loadAt(next);
-      }
-    });
-  }
+  void togglePlay(ProjectState p) { if (p.playing) { timer?.cancel(); p.playing = false; p.status = 'Paused'; p.notifyListeners(); return; } p.playing = true; p.status = 'Playing'; p.notifyListeners(); timer?.cancel(); timer = Timer.periodic(const Duration(milliseconds: 33), (_) { if (!mounted) return; final next = p.playhead + 1 / 30; if (next >= p.selectedAnimation.duration && !p.selectedAnimation.loop) { if (p.advanceQueue()) return; p.playing = false; timer?.cancel(); p.setPlayhead(p.selectedAnimation.duration); } else { p.loadAt(next); } }); }
   void playQueue(ProjectState p, List<String> clipIds) { p.startQueue(clipIds); togglePlay(p); }
   @override Widget build(BuildContext context) => Consumer<ProjectState>(builder: (ctx, p, __) {
         p.onAudioCue ??= (name) {
@@ -138,18 +112,18 @@ class _ShellState extends State<Shell> {
           ));
         };
         final destinations = const [
-          (Icons.home_outlined, 'Home'),
+          (Icons.home_outlined, 'Accueil'),
           (Icons.movie_outlined, 'Studio'),
-          (Icons.groups_outlined, 'Scene'),
-          (Icons.person_outline, 'Character'),
-          (Icons.video_library_outlined, 'Library'),
-          (Icons.account_tree_outlined, 'Rig'),
-          (Icons.timeline_outlined, 'Animate'),
-          (Icons.face_outlined, 'Face'),
+          (Icons.groups_outlined, 'Scène'),
+          (Icons.person_outline, 'Personnage'),
+          (Icons.video_library_outlined, 'Bibliothèque'),
+          (Icons.account_tree_outlined, 'Squelette'),
+          (Icons.timeline_outlined, 'Animation'),
+          (Icons.face_outlined, 'Visage'),
           (Icons.auto_awesome_outlined, 'FX'),
-          (Icons.videocam_outlined, 'Camera'),
+          (Icons.videocam_outlined, 'Caméra'),
           (Icons.audiotrack_outlined, 'Audio'),
-          (Icons.smart_toy_outlined, 'AI Director'),
+          (Icons.smart_toy_outlined, 'IA Réalisateur'),
           (Icons.file_upload_outlined, 'Export'),
         ];
         return LayoutBuilder(builder: (_, constraints) {
@@ -213,6 +187,32 @@ class _SplitView extends StatelessWidget {
       });
 }
 
+/// Display-only French label for an internal English identifier (hair
+/// style, outfit, background theme, etc.). The English value itself is
+/// never changed — it's still what viewport.dart matches against in its
+/// switch statements — this only changes what the button/chip shows.
+String frLabel(String key) => const {
+      // hair styles
+      'Court': 'Court', 'Long': 'Long', 'Spike': 'Pointu', 'Queue': 'Queue de cheval', 'Chauve': 'Chauve',
+      'Frange': 'Frange', 'Afro': 'Afro', 'Mohawk': 'Mohawk',
+      // eye shapes
+      'Round': 'Rond', 'Sharp': 'Perçant', 'Sleepy': 'Endormi', 'Wide': 'Grand ouvert', 'Cat': 'Chat',
+      // outfits
+      'Hoodie': 'Sweat à capuche', 'Jacket': 'Veste', 'Robe': 'Robe de sorcier', 'Dress': 'Robe', 'Tank': 'Débardeur',
+      'Armor': 'Armure', 'Cape': 'Cape', 'Suit': 'Costume', 'Tactical Vest': 'Gilet tactique', 'Battle Cloak': 'Cape de combat',
+      // backgrounds
+      'Void': 'Vide', 'Forest': 'Forêt', 'Rooftop City': 'Toits de ville', 'Rainy City': 'Ville sous la pluie',
+      'Neon Street': 'Rue néon', 'Dojo': 'Dojo', 'Sunset Sky': 'Ciel au couchant', 'Custom': 'Personnalisé',
+      // expressions
+      'Neutral': 'Neutre', 'Happy': 'Content', 'Angry': 'En colère', 'Sad': 'Triste', 'Surprised': 'Surpris',
+      'Terrifying': 'Terrifiant', 'Determined': 'Déterminé', 'Smirk': 'Sourire en coin',
+      // mouth
+      'Auto': 'Auto',
+      // motion curve
+      'linear': 'linéaire', 'smooth': 'doux', 'easeIn': 'accélère', 'easeOut': 'ralentit', 'impact': 'impact',
+      // pose tool already handled elsewhere
+    }[key] ?? key;
+
 class Top extends StatelessWidget {
   const Top({super.key, required this.title, this.subtitle});
   final String title;
@@ -244,7 +244,7 @@ class CardBox extends StatelessWidget {
       );
 }
 
-class HomePage extends StatelessWidget { const HomePage({super.key, required this.onOpen}); final void Function(AppPage) onOpen; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'SHINRA CORE', subtitle: '2D anime animation workspace'), Expanded(child: GridView.count(crossAxisCount: 3, padding: const EdgeInsets.all(24), crossAxisSpacing: 16, mainAxisSpacing: 16, children: [for (final x in [(AppPage.studio, Icons.movie, 'Studio', 'Compose a scene'), (AppPage.scene, Icons.groups, 'Scene', '3-6 characters, city, combat'), (AppPage.character, Icons.person, 'Character', 'Build parts and import art'), (AppPage.rig, Icons.account_tree, 'Rig Studio', 'Bones and bindings'), (AppPage.animate, Icons.timeline, 'Animation Lab', 'Keyframes and playback'), (AppPage.face, Icons.face, 'Expressions', 'Anime facial acting'), (AppPage.fx, Icons.auto_awesome, 'FX', 'Impacts and particles'), (AppPage.camera, Icons.videocam, 'Camera', 'Shots and framing'), (AppPage.ai, Icons.smart_toy, 'AI Director', 'Turn direction into timeline')]) CardBox(child: InkWell(onTap: () => onOpen(x.$1), borderRadius: BorderRadius.circular(18), child: Padding(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(x.$2, size: 36, color: const Color(0xFFE23349)), const Spacer(), Text(x.$3, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text(x.$4, style: TextStyle(color: Colors.white.withOpacity(.55))) ]))))]) )]); }
+class HomePage extends StatelessWidget { const HomePage({super.key, required this.onOpen}); final void Function(AppPage) onOpen; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'SHINRA CORE', subtitle: 'Atelier d\'animation anime 2D'), Expanded(child: GridView.count(crossAxisCount: 3, padding: const EdgeInsets.all(24), crossAxisSpacing: 16, mainAxisSpacing: 16, children: [for (final x in [(AppPage.studio, Icons.movie, 'Studio', 'Composer une scène'), (AppPage.scene, Icons.groups, 'Scène', '3 à 6 personnages, ville, combat'), (AppPage.character, Icons.person, 'Personnage', 'Créer les parties, importer un dessin'), (AppPage.rig, Icons.account_tree, 'Squelette', 'Os et liaisons'), (AppPage.animate, Icons.timeline, 'Animation', 'Images-clés et lecture'), (AppPage.face, Icons.face, 'Expressions', 'Jeu d\'acteur du visage'), (AppPage.fx, Icons.auto_awesome, 'FX', 'Impacts et particules'), (AppPage.camera, Icons.videocam, 'Caméra', 'Plans et cadrage'), (AppPage.ai, Icons.smart_toy, 'IA Réalisateur', 'Transforme une consigne en timeline')]) CardBox(child: InkWell(onTap: () => onOpen(x.$1), borderRadius: BorderRadius.circular(18), child: Padding(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(x.$2, size: 36, color: const Color(0xFFE23349)), const Spacer(), Text(x.$3, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text(x.$4, style: TextStyle(color: Colors.white.withOpacity(.55))) ]))))]) )]); }
 
 class ScenePage extends StatefulWidget {
   const ScenePage({super.key, required this.p, required this.onPlay});
@@ -268,7 +268,7 @@ class _ScenePageState extends State<ScenePage> {
   Widget build(BuildContext c) {
     final p = widget.p;
     return Column(children: [
-      const Top(title: 'Scene Director', subtitle: 'Up to 6 characters — city, rain, combat presets'),
+      const Top(title: 'Scène', subtitle: 'Jusqu\'à 6 personnages — ville, pluie, presets de combat'),
       Expanded(child: Row(children: [
         Expanded(flex: 7, child: CardBox(child: Column(children: [
           Expanded(child: ShinraViewport(project: p)),
@@ -276,16 +276,16 @@ class _ScenePageState extends State<ScenePage> {
           _Transport(p: p, onPlay: widget.onPlay),
         ]))),
         SizedBox(width: MediaQuery.of(c).size.width < 700 ? 150 : 320, child: CardBox(child: ListView(children: [
-          const Text('SCENE PRESETS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+          const Text('PRESETS DE SCÈNE', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 8, children: [
             for (final preset in [('walk_dance_rain', 'Marche + danse pluie'), ('city_stroll', '2 persos ville'), ('triple_combat', '3 combat'), ('six_battle', '6 combat')])
               ActionChip(label: Text(preset.$2), onPressed: () => p.applyScenePreset(preset.$1)),
           ]),
           const Divider(height: 24),
-          const Text('ENVIRONMENT', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+          const Text('DÉCOR', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
           const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 8, children: [for (final s in backgroundStyles) ChoiceChip(label: Text(s), selected: p.background == s, onSelected: (_) => p.setBackground(s))]),
+          Wrap(spacing: 8, runSpacing: 8, children: [for (final s in backgroundStyles) ChoiceChip(label: Text(frLabel(s)), selected: p.background == s, onSelected: (_) => p.setBackground(s))]),
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 8, children: [for (final w in weatherStyles) ChoiceChip(label: Text(w), selected: p.weather == w, onSelected: (_) => p.setWeather(w))]),
           OutlinedButton.icon(
@@ -294,11 +294,11 @@ class _ScenePageState extends State<ScenePage> {
               if (x != null) { setState(() { p.sceneBackgroundImagePath = x.path; p.background = 'Custom'; p.status = 'Scene background imported'; p.notifyListeners(); }); }
             },
             icon: const Icon(Icons.landscape),
-            label: const Text('Import scene background'),
+            label: const Text('Importer un fond de scène'),
           ),
           const Divider(height: 24),
           Row(children: [
-            const Text('CHARACTERS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+            const Text('PERSONNAGES', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
             const Spacer(),
             IconButton(onPressed: p.actors.length >= maxSceneActors ? null : () => p.addActor(), icon: const Icon(Icons.person_add)),
           ]),
@@ -353,7 +353,7 @@ class _ScenePageState extends State<ScenePage> {
   }
 }
 
-class StudioPage extends StatelessWidget { const StudioPage({super.key, required this.p, required this.onPlay}); final ProjectState p; final VoidCallback onPlay; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'Studio', subtitle: 'Scene viewport + timeline'), Expanded(child: Row(children: [Expanded(flex: 7, child: CardBox(child: Column(children: [Expanded(child: ShinraViewport(project: p)), const SizedBox(height: 10), _Transport(p: p, onPlay: onPlay)]))), const SizedBox(width: 14), SizedBox(width: MediaQuery.of(c).size.width < 700 ? 150 : 270, child: _Inspector(p: p))])),]); }
+class StudioPage extends StatelessWidget { const StudioPage({super.key, required this.p, required this.onPlay}); final ProjectState p; final VoidCallback onPlay; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'Studio', subtitle: 'Vue de la scène + timeline'), Expanded(child: Row(children: [Expanded(flex: 7, child: CardBox(child: Column(children: [Expanded(child: ShinraViewport(project: p)), const SizedBox(height: 10), _Transport(p: p, onPlay: onPlay)]))), const SizedBox(width: 14), SizedBox(width: MediaQuery.of(c).size.width < 700 ? 150 : 270, child: _Inspector(p: p))])),]); }
 class _KeyframeTimeline extends StatelessWidget {
   const _KeyframeTimeline({required this.p, this.boneId});
   final ProjectState p;
@@ -398,7 +398,7 @@ class _KeyframeTimeline extends StatelessWidget {
 }
 
 class _Transport extends StatelessWidget { const _Transport({required this.p, required this.onPlay}); final ProjectState p; final VoidCallback onPlay; @override Widget build(BuildContext c) => Column(children: [Row(children: [IconButton(onPressed: p.undo, icon: const Icon(Icons.undo)), IconButton(onPressed: p.redo, icon: const Icon(Icons.redo)), IconButton(onPressed: () => p.setPlayhead(0), icon: const Icon(Icons.stop)), IconButton(onPressed: onPlay, icon: Icon(p.playing ? Icons.pause : Icons.play_arrow)), const SizedBox(width: 8), Text('${p.playhead.toStringAsFixed(2)} / ${p.selectedAnimation.duration.toStringAsFixed(2)}s'), const Spacer(), DropdownButton<String>(value: p.selectedAnimationId, items: [for (final a in p.animations) DropdownMenuItem(value: a.id, child: Text(a.name))], onChanged: (v) { if (v != null) { p.selectedAnimationId = v; p.setPlayhead(0); } })]), _KeyframeTimeline(p: p)]); }
-class _Inspector extends StatelessWidget { const _Inspector({required this.p}); final ProjectState p; @override Widget build(BuildContext c) => CardBox(child: ListView(children: [const Text('INSPECTOR', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1)), const SizedBox(height: 18), Text('Bone: ${p.selectedBone.name}'), const SizedBox(height: 10), _Num('X', p.selectedBone.x, (v) => p.setBone(x: v)), _Num('Y', p.selectedBone.y, (v) => p.setBone(y: v)), _Num('Rotation', p.selectedBone.rotation, (v) => p.setBone(rotation: v)), _Num('Scale', p.selectedBone.scale, (v) => p.setBone(scale: v)), const SizedBox(height: 14), FilledButton.icon(onPressed: p.captureKeyframe, icon: const Icon(Icons.key), label: const Text('Capture Keyframe')), OutlinedButton(onPressed: p.captureAll, child: const Text('Capture Full Pose')), const SizedBox(height: 10), Text(p.status, style: TextStyle(color: Colors.white.withOpacity(.5)))])); }
+class _Inspector extends StatelessWidget { const _Inspector({required this.p}); final ProjectState p; @override Widget build(BuildContext c) => CardBox(child: ListView(children: [const Text('INSPECTEUR', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1)), const SizedBox(height: 18), Text('Bone: ${p.selectedBone.name}'), const SizedBox(height: 10), _Num('X', p.selectedBone.x, (v) => p.setBone(x: v)), _Num('Y', p.selectedBone.y, (v) => p.setBone(y: v)), _Num('Rotation', p.selectedBone.rotation, (v) => p.setBone(rotation: v)), _Num('Scale', p.selectedBone.scale, (v) => p.setBone(scale: v)), const SizedBox(height: 14), FilledButton.icon(onPressed: p.captureKeyframe, icon: const Icon(Icons.key), label: const Text('Capturer une image-clé')), OutlinedButton(onPressed: p.captureAll, child: const Text('Capturer la pose complète')), const SizedBox(height: 10), Text(p.status, style: TextStyle(color: Colors.white.withOpacity(.5)))])); }
 class _Num extends StatelessWidget { const _Num(this.label, this.value, this.onChanged); final String label; final double value; final ValueChanged<double> onChanged; @override Widget build(BuildContext c) => Row(children: [SizedBox(width: 72, child: Text(label)), Expanded(child: Slider(value: value.clamp(-200, 200).toDouble(), min: -200, max: 200, onChanged: onChanged))]); }
 
 class CharacterPage extends StatefulWidget { const CharacterPage({super.key, required this.p}); final ProjectState p; @override State<CharacterPage> createState() => _CharacterPageState(); }
@@ -448,7 +448,7 @@ class _CharacterPageState extends State<CharacterPage> {
             ],
           ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(dc), child: const Text('Cancel'))],
+        actions: [TextButton(onPressed: () => Navigator.pop(dc), child: const Text('Annuler'))],
       ),
     );
     if (chosen == null) return;
@@ -484,7 +484,7 @@ class _CharacterPageState extends State<CharacterPage> {
   Widget build(BuildContext c) {
     final p = widget.p;
     return Column(children: [
-      const Top(title: 'Character Creator', subtitle: 'Draw your own via presets, or upload art and animate it'),
+      const Top(title: 'Créateur de personnage', subtitle: 'Dessine via les presets, ou importe un dessin et anime-le'),
       Expanded(
         child: Row(children: [
           Expanded(child: CardBox(child: ShinraViewport(project: p))),
@@ -492,7 +492,7 @@ class _CharacterPageState extends State<CharacterPage> {
             width: 320,
             child: CardBox(
               child: ListView(children: [
-                const Text('ARTWORK', style: TextStyle(fontWeight: FontWeight.w800)),
+                const Text('DESSIN', style: TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 8),
                 Row(children: [
                   Expanded(
@@ -502,7 +502,7 @@ class _CharacterPageState extends State<CharacterPage> {
                         if (path != null) { p.importedImagePath = path; p.useImageAsBody = true; p.status = 'Drawing ready'; p.notifyListeners(); }
                       },
                       icon: const Icon(Icons.brush),
-                      label: const Text('Draw'),
+                      label: const Text('Dessiner'),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -513,7 +513,7 @@ class _CharacterPageState extends State<CharacterPage> {
                         if (x != null) { p.importedImagePath = x.path; p.status = 'Imported ${x.name}'; p.notifyListeners(); }
                       },
                       icon: const Icon(Icons.image),
-                      label: const Text('Upload'),
+                      label: const Text('Importer'),
                     ),
                   ),
                 ]),
@@ -521,7 +521,7 @@ class _CharacterPageState extends State<CharacterPage> {
                 OutlinedButton.icon(
                   onPressed: () => _pickStarterCharacter(c, p),
                   icon: const Icon(Icons.groups_outlined),
-                  label: const Text('Or pick a starter character (Kenney, CC0)'),
+                  label: const Text('Ou choisir un perso de démarrage (Kenney, CC0)'),
                 ),
                 if (p.importedImagePath.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -545,52 +545,52 @@ class _CharacterPageState extends State<CharacterPage> {
                 _swatchRow('Eyes', eyePalette, p.eyeColor, (v) => p.setAppearance(eyes: v)),
                 const Text('Eye shape', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
-                Wrap(spacing: 8, runSpacing: 8, children: [for (final s in eyeShapes) ChoiceChip(label: Text(s), selected: p.eyeShape == s, onSelected: (_) => p.setAppearance(eyeShape: s))]),
+                Wrap(spacing: 8, runSpacing: 8, children: [for (final s in eyeShapes) ChoiceChip(label: Text(frLabel(s)), selected: p.eyeShape == s, onSelected: (_) => p.setAppearance(eyeShape: s))]),
                 const SizedBox(height: 10),
                 _swatchRow('Clothes', clothesPalette, p.clothesColor, (v) => p.setAppearance(clothes: v)),
                 const SizedBox(height: 4),
                 const Text('Hair style', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
-                Wrap(spacing: 8, runSpacing: 8, children: [for (final s in hairStyles) ChoiceChip(label: Text(s), selected: p.hairStyle == s, onSelected: (_) => p.setAppearance(style: s))]),
+                Wrap(spacing: 8, runSpacing: 8, children: [for (final s in hairStyles) ChoiceChip(label: Text(frLabel(s)), selected: p.hairStyle == s, onSelected: (_) => p.setAppearance(style: s))]),
                 const SizedBox(height: 12),
                 const Text('Outfit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
-                Wrap(spacing: 8, runSpacing: 8, children: [for (final s in outfitStyles) ChoiceChip(label: Text(s), selected: p.outfitStyle == s, onSelected: (_) => p.setOutfit(s))]),
+                Wrap(spacing: 8, runSpacing: 8, children: [for (final s in outfitStyles) ChoiceChip(label: Text(frLabel(s)), selected: p.outfitStyle == s, onSelected: (_) => p.setOutfit(s))]),
                 const SizedBox(height: 12),
                 const Text('Accessories', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
                 Wrap(spacing: 8, runSpacing: 8, children: [
-                  FilterChip(label: const Text('Glasses'), selected: p.accGlasses, onSelected: (v) => p.setAccessory('glasses', v)),
-                  FilterChip(label: const Text('Headband'), selected: p.accHeadband, onSelected: (v) => p.setAccessory('headband', v)),
-                  FilterChip(label: const Text('Scarf'), selected: p.accScarf, onSelected: (v) => p.setAccessory('scarf', v)),
-                  FilterChip(label: const Text('Hat'), selected: p.accHat, onSelected: (v) => p.setAccessory('hat', v)),
-                  FilterChip(label: const Text('Gloves'), selected: p.accGloves, onSelected: (v) => p.setAccessory('gloves', v)),
-                  FilterChip(label: const Text('Belt'), selected: p.accBelt, onSelected: (v) => p.setAccessory('belt', v)),
+                  FilterChip(label: const Text('Lunettes'), selected: p.accGlasses, onSelected: (v) => p.setAccessory('glasses', v)),
+                  FilterChip(label: const Text('Bandeau'), selected: p.accHeadband, onSelected: (v) => p.setAccessory('headband', v)),
+                  FilterChip(label: const Text('Écharpe'), selected: p.accScarf, onSelected: (v) => p.setAccessory('scarf', v)),
+                  FilterChip(label: const Text('Chapeau'), selected: p.accHat, onSelected: (v) => p.setAccessory('hat', v)),
+                  FilterChip(label: const Text('Gants'), selected: p.accGloves, onSelected: (v) => p.setAccessory('gloves', v)),
+                  FilterChip(label: const Text('Ceinture'), selected: p.accBelt, onSelected: (v) => p.setAccessory('belt', v)),
                 ]),
                 const SizedBox(height: 12),
                 const Text('Scene / background', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
-                Wrap(spacing: 8, runSpacing: 8, children: [for (final s in backgroundStyles) ChoiceChip(label: Text(s), selected: p.background == s, onSelected: (_) { p.setBackground(s); p.notifyListeners(); })]),
+                Wrap(spacing: 8, runSpacing: 8, children: [for (final s in backgroundStyles) ChoiceChip(label: Text(frLabel(s)), selected: p.background == s, onSelected: (_) { p.setBackground(s); p.notifyListeners(); })]),
                 const Divider(height: 28),
-                const Text('PARTS', style: TextStyle(fontWeight: FontWeight.w800)),
+                const Text('PARTIES', style: TextStyle(fontWeight: FontWeight.w800)),
                 for (final part in p.parts) ListTile(dense: true, leading: Icon(part.visible ? Icons.visibility : Icons.visibility_off), title: Text(part.name), subtitle: Text(part.boneId), onTap: () => p.togglePart(part.id)),
                 if (p.importedImagePath.isNotEmpty) ...[
                   const Divider(height: 28),
-                  const Text('IMAGE TOOLS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                  const Text('OUTILS IMAGE', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
                   const SizedBox(height: 4),
                   Text('Applied directly to the imported/drawn artwork.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
                   const SizedBox(height: 8),
                   Wrap(spacing: 8, runSpacing: 8, children: [
-                    OutlinedButton.icon(onPressed: imageEditing ? null : () => _applyImageEdit(p, (i) => ie.ImageUploadService.removeBackground(i)), icon: const Icon(Icons.auto_fix_normal), label: const Text('Remove background')),
-                    OutlinedButton.icon(onPressed: imageEditing ? null : () => _applyImageEdit(p, (i) => ie.ImageUploadService.flipHorizontal(i)), icon: const Icon(Icons.flip), label: const Text('Flip')),
-                    OutlinedButton.icon(onPressed: imageEditing ? null : () => _applyImageEdit(p, (i) => ie.ImageUploadService.tint(i, p.clothesColor)), icon: const Icon(Icons.format_color_fill), label: const Text('Tint (clothes color)')),
-                    OutlinedButton.icon(onPressed: imageEditing ? null : () => _applyImageEdit(p, (i) => ie.ImageUploadService.adjustBrightness(i, 1.15)), icon: const Icon(Icons.brightness_6), label: const Text('Brighter')),
+                    OutlinedButton.icon(onPressed: imageEditing ? null : () => _applyImageEdit(p, (i) => ie.ImageUploadService.removeBackground(i)), icon: const Icon(Icons.auto_fix_normal), label: const Text('Enlever le fond')),
+                    OutlinedButton.icon(onPressed: imageEditing ? null : () => _applyImageEdit(p, (i) => ie.ImageUploadService.flipHorizontal(i)), icon: const Icon(Icons.flip), label: const Text('Retourner')),
+                    OutlinedButton.icon(onPressed: imageEditing ? null : () => _applyImageEdit(p, (i) => ie.ImageUploadService.tint(i, p.clothesColor)), icon: const Icon(Icons.format_color_fill), label: const Text('Teinter (couleur des vêtements)')),
+                    OutlinedButton.icon(onPressed: imageEditing ? null : () => _applyImageEdit(p, (i) => ie.ImageUploadService.adjustBrightness(i, 1.15)), icon: const Icon(Icons.brightness_6), label: const Text('Éclaircir')),
                   ]),
                   if (imageEditing) const Padding(padding: EdgeInsets.only(top: 8), child: LinearProgressIndicator()),
                 ],
                 if (p.useImageAsBody && p.importedImagePath.isNotEmpty) ...[
                   const Divider(height: 28),
-                  const Text('IMAGE → PART MAPPING', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                  const Text('IMAGE → LIAISON DES PARTIES', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
                   const SizedBox(height: 4),
                   Text('Draw a region for each part so it moves on its own bone instead of the whole image moving as one block.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
                   const SizedBox(height: 8),
@@ -611,7 +611,7 @@ class _CharacterPageState extends State<CharacterPage> {
                       title: Text(part.name),
                       subtitle: Text(part.crop == null ? 'No region mapped yet' : 'Region mapped'),
                       trailing: Wrap(spacing: 4, children: [
-                        TextButton(onPressed: () => _pickCropRegion(c, p, part), child: const Text('Set region')),
+                        TextButton(onPressed: () => _pickCropRegion(c, p, part), child: const Text('Définir la région')),
                         if (part.crop != null) IconButton(onPressed: () => p.setPartCrop(part.id, null), icon: const Icon(Icons.close, size: 18)),
                       ]),
                     ),
@@ -639,25 +639,25 @@ class _RigPageState extends State<RigPage> {
   Widget build(BuildContext c) {
     final p = widget.p;
     return Column(children: [
-      const Top(title: 'Rig Studio', subtitle: 'Bones, hierarchy, part binding — and posing'),
+      const Top(title: 'Squelette', subtitle: 'Os, hiérarchie, liaison des parties — et pose'),
       Expanded(child: Row(children: [
         Expanded(child: CardBox(child: Column(children: [
           Row(children: [
-            FilterChip(label: const Text('Pose mode (drag to move)'), selected: poseMode, onSelected: (v) => setState(() => poseMode = v)),
+            FilterChip(label: const Text('Mode pose (glisser pour bouger)'), selected: poseMode, onSelected: (v) => setState(() => poseMode = v)),
             const SizedBox(width: 8),
             if (poseMode) ...[
-              ChoiceChip(label: const Text('Move'), selected: p.poseTool == 'move', onSelected: (_) => p.setPoseTool('move')),
+              ChoiceChip(label: const Text('Déplacer'), selected: p.poseTool == 'move', onSelected: (_) => p.setPoseTool('move')),
               const SizedBox(width: 6),
-              ChoiceChip(label: const Text('Rotate'), selected: p.poseTool == 'rotate', onSelected: (_) => p.setPoseTool('rotate')),
+              ChoiceChip(label: const Text('Tourner'), selected: p.poseTool == 'rotate', onSelected: (_) => p.setPoseTool('rotate')),
               const SizedBox(width: 6),
-              ChoiceChip(label: const Text('Scale'), selected: p.poseTool == 'scale', onSelected: (_) => p.setPoseTool('scale')),
+              ChoiceChip(label: const Text('Échelle'), selected: p.poseTool == 'scale', onSelected: (_) => p.setPoseTool('scale')),
             ],
           ]),
           const SizedBox(height: 8),
           Expanded(child: ShinraViewport(project: p, poseMode: poseMode)),
         ]))),
         SizedBox(width: MediaQuery.of(c).size.width < 700 ? 150 : 320, child: CardBox(child: ListView(children: [
-          FilledButton.icon(onPressed: p.autoRig, icon: const Icon(Icons.refresh), label: const Text('Rebuild Auto-Rig')),
+          FilledButton.icon(onPressed: p.autoRig, icon: const Icon(Icons.refresh), label: const Text('Reconstruire le squelette')),
           const SizedBox(height: 12),
           Text('Bone: ${p.selectedBone.name}', style: const TextStyle(fontWeight: FontWeight.w700)),
           _Num('X', p.selectedBone.x, (v) => p.setBone(x: v)),
@@ -665,15 +665,15 @@ class _RigPageState extends State<RigPage> {
           _Num('Rotation', p.selectedBone.rotation, (v) => p.setBone(rotation: v)),
           _Num('Scale', p.selectedBone.scale, (v) => p.setBone(scale: v)),
           Row(children: [
-            Expanded(child: FilledButton.icon(onPressed: p.captureKeyframe, icon: const Icon(Icons.key), label: const Text('Keyframe'))),
+            Expanded(child: FilledButton.icon(onPressed: p.captureKeyframe, icon: const Icon(Icons.key), label: const Text('Image-clé'))),
             const SizedBox(width: 8),
-            Expanded(child: OutlinedButton(onPressed: p.captureAll, child: const Text('Full Pose'))),
+            Expanded(child: OutlinedButton(onPressed: p.captureAll, child: const Text('Pose complète'))),
           ]),
           const Divider(height: 24),
-          const Text('SKELETON', style: TextStyle(fontWeight: FontWeight.w800)),
+          const Text('SQUELETTE', style: TextStyle(fontWeight: FontWeight.w800)),
           for (final b in p.bones) ListTile(selected: b.id == p.selectedBoneId, leading: const Icon(Icons.circle, size: 10), title: Text(b.name), subtitle: Text(b.parentId == null ? 'Root' : '↳ ${b.parentId}'), onTap: () => p.selectBone(b.id)),
           const Divider(),
-          const Text('PART BINDING', style: TextStyle(fontWeight: FontWeight.w800)),
+          const Text('LIAISON DES PARTIES', style: TextStyle(fontWeight: FontWeight.w800)),
           for (final part in p.parts) DropdownButtonFormField<String>(key: ValueKey(part.id), value: part.boneId, decoration: InputDecoration(labelText: part.name), items: [for (final b in p.bones) DropdownMenuItem(value: b.id, child: Text(b.name))], onChanged: (v) { if (v != null) p.bindPart(part.id, v); }),
         ]))),
       ])),
@@ -700,7 +700,7 @@ class AnimatePage extends StatelessWidget {
               TextField(controller: durationCtrl, decoration: const InputDecoration(labelText: 'Duration (seconds)'), keyboardType: const TextInputType.numberWithOptions(decimal: true)),
               SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Loop'), value: loop, onChanged: (v) => setS(() => loop = v)),
             ]),
-            actions: [TextButton(onPressed: () => Navigator.pop(dc, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(dc, true), child: const Text('Create'))],
+            actions: [TextButton(onPressed: () => Navigator.pop(dc, false), child: const Text('Annuler')), FilledButton(onPressed: () => Navigator.pop(dc, true), child: const Text('Créer'))],
           )),
     );
     if (ok == true) {
@@ -711,39 +711,24 @@ class AnimatePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext c) => Column(children: [
-        const Top(title: 'Animation Lab', subtitle: 'Keyframe animation on the rig — build your own or edit a preset'),
+        const Top(title: 'Animation', subtitle: 'Animation par images-clés — crée la tienne ou modifie un preset'),
         CardBox(
           child: Column(children: [
             Row(children: [
               Expanded(child: DropdownButton<String>(isExpanded: true, value: p.selectedAnimationId, items: [for (final a in p.animations) DropdownMenuItem(value: a.id, child: Text('${a.name}  (${a.duration.toStringAsFixed(1)}s)'))], onChanged: (v) { if (v != null) { p.selectedAnimationId = v; p.setPlayhead(0); } })),
               const SizedBox(width: 8),
-              OutlinedButton.icon(onPressed: () => _newAnimation(c), icon: const Icon(Icons.add), label: const Text('New')),
+              OutlinedButton.icon(onPressed: () => _newAnimation(c), icon: const Icon(Icons.add), label: const Text('Nouveau')),
               if (p.selectedAnimationId.startsWith('custom_')) IconButton(onPressed: () => p.deleteAnimation(p.selectedAnimationId), icon: const Icon(Icons.delete_outline)),
             ]),
             const SizedBox(height: 8),
             Row(children: [
               FilledButton.icon(onPressed: onPlay, icon: Icon(p.playing ? Icons.pause : Icons.play_arrow), label: Text(p.playing ? 'Pause' : 'Play')),
-              const SizedBox(width: 10),
-              const Text('Timing', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-              const SizedBox(width: 6),
-              DropdownButton<int>(
-                value: p.playbackFps,
-                items: const [8, 12, 15, 24, 30, 60].map((f) => DropdownMenuItem(value: f, child: Text('${f} fps'))).toList(),
-                onChanged: p.playing ? null : (v) { if (v != null) p.setPlaybackFps(v); },
-              ),
-              const SizedBox(width: 6),
-              FilterChip(
-                avatar: const Icon(Icons.layers, size: 16),
-                label: const Text('Onion'),
-                selected: p.onionSkin,
-                onSelected: p.setOnionSkin,
-              ),
               const SizedBox(width: 8),
-              OutlinedButton(onPressed: p.captureKeyframe, child: const Text('Keyframe')),
+              OutlinedButton(onPressed: p.captureKeyframe, child: const Text('Image-clé')),
               const SizedBox(width: 8),
-              OutlinedButton(onPressed: p.captureAll, child: const Text('Capture Full Pose')),
+              OutlinedButton(onPressed: p.captureAll, child: const Text('Capturer la pose complète')),
               const SizedBox(width: 8),
-              OutlinedButton(onPressed: p.resetPose, child: const Text('Reset')),
+              OutlinedButton(onPressed: p.resetPose, child: const Text('Réinitialiser')),
             ]),
             const SizedBox(height: 8),
             _KeyframeTimeline(p: p, boneId: p.selectedBoneId),
@@ -752,25 +737,17 @@ class AnimatePage extends StatelessWidget {
               spacing: 6,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const Text('Motion curve', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                const Text('Courbe de mouvement', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
                 for (final easing in KeyframeEasing.values)
                   ChoiceChip(
-                    label: Text(easing.name),
+                    label: Text(frLabel(easing.name)),
                     selected: _easingAtPlayhead(p) == easing,
                     onSelected: (_) => p.setKeyframeEasing(easing),
                     visualDensity: VisualDensity.compact,
                   ),
               ],
             ),
-            Row(children: [
-              for (final b in p.bones.take(6)) Expanded(child: Text('${b.name}\n${p.selectedAnimation.tracks[b.id]?.keys.length ?? 0} keys', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)))
-            ]),
-            const SizedBox(height: 8),
-            Wrap(spacing: 6, children: [
-              OutlinedButton.icon(onPressed: () => p.applyAnimeMotionPreset('anticipation'), icon: const Icon(Icons.flash_on, size: 16), label: const Text('Anticipation')),
-              OutlinedButton.icon(onPressed: () => p.applyAnimeMotionPreset('impact'), icon: const Icon(Icons.bolt, size: 16), label: const Text('Impact timing')),
-              OutlinedButton.icon(onPressed: () => p.applyAnimeMotionPreset('settle'), icon: const Icon(Icons.waves, size: 16), label: const Text('Follow-through')),
-            ]),
+            Row(children: [for (final b in p.bones.take(6)) Expanded(child: Text('${b.name}\n${p.selectedAnimation.tracks[b.id]?.keys.length ?? 0} keys', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)))]),
           ]),
         ),
         Expanded(child: Padding(padding: const EdgeInsets.all(16), child: ShinraViewport(project: p))),
@@ -792,7 +769,7 @@ class FacePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext c) => Column(children: [
-        const Top(title: 'Expression Studio', subtitle: 'Expressions, eye direction and natural blinking'),
+        const Top(title: 'Studio d\'expressions', subtitle: 'Expressions, direction du regard et clignement naturel'),
         Expanded(child: Row(children: [
           Expanded(child: CardBox(child: ShinraViewport(project: p, showBones: false))),
           SizedBox(
@@ -803,19 +780,19 @@ class FacePage extends StatelessWidget {
                 const SizedBox(height: 8),
                 Wrap(spacing: 8, runSpacing: 8, children: [
                   for (final e in ['Neutral', 'Happy', 'Angry', 'Sad', 'Surprised', 'Terrifying', 'Determined', 'Smirk'])
-                    ChoiceChip(label: Text(e), selected: p.expression == e, onSelected: (_) => p.setExpression(e)),
+                    ChoiceChip(label: Text(frLabel(e)), selected: p.expression == e, onSelected: (_) => p.setExpression(e)),
                 ]),
                 const Divider(height: 28),
-                const Text('EYE DIRECTION', style: TextStyle(fontWeight: FontWeight.w800)),
+                const Text('DIRECTION DU REGARD', style: TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 8),
                 const Text('The eyes also blink naturally during playback.', style: TextStyle(fontSize: 11)),
                 Slider(value: p.eyeLookX, min: -1, max: 1, divisions: 8, label: p.eyeLookX.toStringAsFixed(1), onChanged: (v) => p.setEyeDirection(x: v)),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: const [Text('Left'), Text('Right')]),
                 Slider(value: p.eyeLookY, min: -1, max: 1, divisions: 8, label: p.eyeLookY.toStringAsFixed(1), onChanged: (v) => p.setEyeDirection(y: v)),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: const [Text('Up'), Text('Down')]),
-                Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: () => p.setEyeDirection(x: 0, y: 0), icon: const Icon(Icons.center_focus_strong), label: const Text('Center eyes'))),
+                Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: () => p.setEyeDirection(x: 0, y: 0), icon: const Icon(Icons.center_focus_strong), label: const Text('Centrer les yeux'))),
                 const Divider(height: 28),
-                const Text('TALKING MOUTH', style: TextStyle(fontWeight: FontWeight.w800)),
+                const Text('BOUCHE QUI PARLE', style: TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 6),
                 Wrap(spacing: 8, children: [
                   for (final shape in ['Auto', 'A', 'O', 'B'])
@@ -842,8 +819,8 @@ class _ListTool extends StatelessWidget {
         Top(title: title, subtitle: subtitle),
         Expanded(
           child: LayoutBuilder(builder: (_, constraints) {
-            final addPanel = CardBox(child: ListView(children: [for (final x in items) ListTile(leading: const Icon(Icons.add_circle_outline), title: Text(x), trailing: FilledButton(onPressed: () => onAdd(x), child: const Text('Add')))]));
-            final eventsPanel = CardBox(child: ListView(children: [const Text('TIMELINE EVENTS', style: TextStyle(fontWeight: FontWeight.w800)), const SizedBox(height: 12), for (final x in entries) ListTile(title: Text(x))]));
+            final addPanel = CardBox(child: ListView(children: [for (final x in items) ListTile(leading: const Icon(Icons.add_circle_outline), title: Text(x), trailing: FilledButton(onPressed: () => onAdd(x), child: const Text('Ajouter')))]));
+            final eventsPanel = CardBox(child: ListView(children: [const Text('ÉVÉNEMENTS DE LA TIMELINE', style: TextStyle(fontWeight: FontWeight.w800)), const SizedBox(height: 12), for (final x in entries) ListTile(title: Text(x))]));
             // Side-by-side needs real room for the fixed-width events panel —
             // a phone-width screen stacks them instead, or the "Add" list
             // gets squeezed to nothing (confirmed on an actual device: the
@@ -862,7 +839,7 @@ class CameraPage extends StatelessWidget {
   final ProjectState p;
   @override
   Widget build(BuildContext c) => Column(children: [
-        const Top(title: 'Camera', subtitle: 'Cinematic framing and motion'),
+        const Top(title: 'Caméra', subtitle: 'Cadrage et mouvement cinématique'),
         Expanded(
           child: _SplitView(
             primary: CardBox(child: ShinraViewport(project: p, showBones: false)),
@@ -871,7 +848,7 @@ class CameraPage extends StatelessWidget {
               _Num('Y', p.camera.y, (v) => p.setCamera(y: v)),
               _Num('Zoom', p.camera.zoom, (v) => p.setCamera(zoom: v)),
               _Num('Rotation', p.camera.rotation, (v) => p.setCamera(rotation: v)),
-              FilledButton(onPressed: () => p.setCamera(x: 0, y: 0, zoom: 1, rotation: 0), child: const Text('Reset Camera')),
+              FilledButton(onPressed: () => p.setCamera(x: 0, y: 0, zoom: 1, rotation: 0), child: const Text('Réinitialiser la caméra')),
             ])),
           ),
         ),
@@ -906,7 +883,7 @@ class _AiPageState extends State<AiPage> {
 
   @override
   Widget build(BuildContext c) => Column(children: [
-        const Top(title: 'AI Director', subtitle: 'Direction in, real playback out — chains your existing clips'),
+        const Top(title: 'IA Réalisateur', subtitle: 'Une consigne en entrée, une vraie lecture en sortie — enchaîne tes animations existantes'),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -914,12 +891,12 @@ class _AiPageState extends State<AiPage> {
               child: Column(children: [
                 TextField(controller: controller, minLines: 4, maxLines: 6, decoration: const InputDecoration(labelText: 'Direction', hintText: 'Ex: fais courir mon personnage, arrête-le, puis frappe', border: OutlineInputBorder())),
                 const SizedBox(height: 12),
-                Align(alignment: Alignment.centerRight, child: OutlinedButton.icon(onPressed: () { setState(() => actions = AiDirector.parse(controller.text, widget.p)); }, icon: const Icon(Icons.auto_awesome), label: const Text('Plan scene'))),
+                Align(alignment: Alignment.centerRight, child: OutlinedButton.icon(onPressed: () { setState(() => actions = AiDirector.parse(controller.text, widget.p)); }, icon: const Icon(Icons.auto_awesome), label: const Text('Planifier la scène'))),
                 const SizedBox(height: 12),
                 Expanded(child: ListView(children: [for (final a in actions) ListTile(leading: Icon(_icon(a)), title: Text(a.label), subtitle: Text(a.kind == 'clip' ? 'plays this clip in sequence' : a.kind == 'expression' ? 'sets facial expression' : 'triggered once at start'))])),
                 if (actions.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Align(alignment: Alignment.centerRight, child: FilledButton.icon(onPressed: _applyAndPlay, icon: const Icon(Icons.play_arrow), label: const Text('Apply & Play'))),
+                  Align(alignment: Alignment.centerRight, child: FilledButton.icon(onPressed: _applyAndPlay, icon: const Icon(Icons.play_arrow), label: const Text('Appliquer et lire'))),
                 ],
               ]),
             ),
@@ -991,12 +968,12 @@ class _CropPickerDialogState extends State<_CropPickerDialog> {
         ]),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
         FilledButton(
           onPressed: rect == null || rect!.width < 4 || rect!.height < 4
               ? null
               : () => Navigator.pop(context, Rect.fromLTWH(rect!.left / boxSize, rect!.top / boxSize, rect!.width / boxSize, rect!.height / boxSize)),
-          child: const Text('Save region'),
+          child: const Text('Enregistrer la région'),
         ),
       ],
     );
@@ -1040,7 +1017,7 @@ class _LibraryPageState extends State<LibraryPage> with SingleTickerProviderStat
   Widget build(BuildContext c) {
     final p = widget.p;
     return Column(children: [
-      const Top(title: 'Library', subtitle: 'Ready-made animations, expressions, FX and audio to reuse on any rig'),
+      const Top(title: 'Bibliothèque', subtitle: 'Animations, expressions, FX et audio prêts à réutiliser sur n\'importe quel squelette'),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Align(
@@ -1064,7 +1041,7 @@ class _LibraryPageState extends State<LibraryPage> with SingleTickerProviderStat
           child: TabBarView(controller: tab, children: [
             _grid([for (final a in p.animations.where((a) => a.category == AnimCategory.movement)) _tile(a.name, '${a.duration.toStringAsFixed(1)}s • ${a.loop ? 'loop' : 'one-shot'}', Icons.directions_run, () { p.selectAnimation(a.id); widget.onUse(); })]),
             _grid([for (final a in p.animations.where((a) => a.category == AnimCategory.combat)) _tile(a.name, '${a.duration.toStringAsFixed(1)}s • ${a.loop ? 'loop' : 'one-shot'}', Icons.sports_martial_arts, () { p.selectAnimation(a.id); widget.onUse(); })]),
-            _grid([for (final e in expressions) _tile(e, 'Facial expression', Icons.face, () { p.setExpression(e); widget.onUse(); })]),
+            _grid([for (final e in expressions) _tile(frLabel(e), 'Facial expression', Icons.face, () { p.setExpression(e); widget.onUse(); })]),
             _grid([
               for (final f in fxItems) _tile(f, 'FX — added at playhead', Icons.auto_awesome, () => p.addFx(f)),
               for (final a in audioItems) _tile(a, 'Audio cue — added at playhead', Icons.audiotrack, () => p.addAudio(a)),
@@ -1127,7 +1104,7 @@ class _ExportPageState extends State<ExportPage> {
   Widget build(BuildContext c) {
     final p = widget.p;
     return Column(children: [
-      const Top(title: 'Project', subtitle: 'Save, restore and export a real GIF or MP4'),
+      const Top(title: 'Projet', subtitle: 'Sauvegarder, restaurer et exporter en vrai GIF ou MP4'),
       Expanded(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -1140,9 +1117,9 @@ class _ExportPageState extends State<ExportPage> {
                   Text('Bones: ${p.bones.length}   Parts: ${p.parts.length}   Animations: ${p.animations.length}'),
                   Text('FX: ${p.fx.length}   Audio cues: ${p.audio.length}'),
                   const SizedBox(height: 24),
-                  FilledButton.icon(onPressed: () => ProjectStore.save(p), icon: const Icon(Icons.save), label: const Text('Save Project')),
+                  FilledButton.icon(onPressed: () => ProjectStore.save(p), icon: const Icon(Icons.save), label: const Text('Sauvegarder le projet')),
                   const SizedBox(height: 8),
-                  OutlinedButton.icon(onPressed: () => ProjectStore.load(p), icon: const Icon(Icons.folder_open), label: const Text('Load Project')),
+                  OutlinedButton.icon(onPressed: () => ProjectStore.load(p), icon: const Icon(Icons.folder_open), label: const Text('Charger le projet')),
                   const SizedBox(height: 20),
                   const Text('Export', style: TextStyle(fontWeight: FontWeight.w800)),
                   const SizedBox(height: 4),
@@ -1175,9 +1152,9 @@ class _ExportPageState extends State<ExportPage> {
                   if (resultPath != null) ...[
                     const SizedBox(height: 14),
                     FilledButton.icon(
-                      onPressed: () => Share.shareXFiles([XFile(resultPath!)], text: 'Made with SHINRA CORE'),
+                      onPressed: () => SharePlus.instance.share(ShareParams(files: [XFile(resultPath!)], text: 'Made with SHINRA CORE')),
                       icon: const Icon(Icons.ios_share),
-                      label: const Text('Share / Save this file'),
+                      label: const Text('Partager / enregistrer ce fichier'),
                     ),
                     const SizedBox(height: 8),
                     Text('The export is saved in a private app folder, invisible to your file manager or gallery — tap Share to actually get it onto your device (save to Files, Photos, send via any app).', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
