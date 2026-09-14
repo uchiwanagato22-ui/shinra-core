@@ -66,7 +66,7 @@ class ShinraApp extends StatelessWidget {
         dividerColor: Palette.line,
         navigationRailTheme: NavigationRailThemeData(
           backgroundColor: Palette.panel,
-          indicatorColor: Palette.crimson.withOpacity(.18),
+          indicatorColor: Palette.crimson.withValues(alpha: .18),
           selectedIconTheme: const IconThemeData(color: Palette.crimson),
           unselectedIconTheme: IconThemeData(color: Palette.inkMuted),
           selectedLabelTextStyle: const TextStyle(color: Palette.crimson, fontWeight: FontWeight.w600, fontSize: 11),
@@ -76,7 +76,7 @@ class ShinraApp extends StatelessWidget {
         outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(foregroundColor: Palette.ink, side: const BorderSide(color: Palette.line), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
         chipTheme: ChipThemeData(
           backgroundColor: Palette.surface,
-          selectedColor: Palette.crimson.withOpacity(.22),
+          selectedColor: Palette.crimson.withValues(alpha: .22),
           labelStyle: const TextStyle(color: Palette.ink, fontSize: 12),
           side: const BorderSide(color: Palette.line),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -93,10 +93,41 @@ enum AppPage { home, studio, scene, character, library, rig, animate, face, fx, 
 
 class Shell extends StatefulWidget { const Shell({super.key}); @override State<Shell> createState() => _ShellState(); }
 class _ShellState extends State<Shell> {
-  AppPage page = AppPage.home; Timer? timer;
+  AppPage page = AppPage.home; Timer? timer; DateTime? _lastPlaybackTick;
   final audioCues = AudioCueService();
-  @override void dispose() { timer?.cancel(); audioCues.dispose(); super.dispose(); }
-  void togglePlay(ProjectState p) { if (p.playing) { timer?.cancel(); p.playing = false; p.status = 'Paused'; p.notifyListeners(); return; } p.playing = true; p.status = 'Playing'; p.notifyListeners(); timer?.cancel(); timer = Timer.periodic(const Duration(milliseconds: 33), (_) { if (!mounted) return; final next = p.playhead + 1 / 30; if (next >= p.selectedAnimation.duration && !p.selectedAnimation.loop) { if (p.advanceQueue()) return; p.playing = false; timer?.cancel(); p.setPlayhead(p.selectedAnimation.duration); } else { p.loadAt(next); } }); }
+  @override void dispose() { timer?.cancel(); _lastPlaybackTick = null; audioCues.dispose(); super.dispose(); }
+  void togglePlay(ProjectState p) {
+    if (p.playing) {
+      timer?.cancel();
+      _lastPlaybackTick = null;
+      p.playing = false;
+      p.status = 'Paused';
+      p.refresh();
+      return;
+    }
+    p.playing = true;
+    p.status = 'Playing';
+    _lastPlaybackTick = DateTime.now();
+    p.refresh();
+    timer?.cancel();
+    timer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      if (!mounted || !p.playing) return;
+      final now = DateTime.now();
+      final previous = _lastPlaybackTick ?? now;
+      _lastPlaybackTick = now;
+      final dt = (now.difference(previous).inMicroseconds / 1000000.0).clamp(0.001, .08);
+      final next = p.playhead + dt;
+      if (next >= p.selectedAnimation.duration && !p.selectedAnimation.loop) {
+        if (p.advanceQueue()) { _lastPlaybackTick = now; return; }
+        p.playing = false;
+        timer?.cancel();
+        _lastPlaybackTick = null;
+        p.setPlayhead(p.selectedAnimation.duration);
+      } else {
+        p.loadAt(next);
+      }
+    });
+  }
   void playQueue(ProjectState p, List<String> clipIds) { p.startQueue(clipIds); togglePlay(p); }
   @override Widget build(BuildContext context) => Consumer<ProjectState>(builder: (ctx, p, __) {
         p.onAudioCue ??= (name) {
@@ -242,7 +273,7 @@ class CardBox extends StatelessWidget {
       );
 }
 
-class HomePage extends StatelessWidget { const HomePage({super.key, required this.onOpen}); final void Function(AppPage) onOpen; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'SHINRA CORE', subtitle: 'Atelier d\'animation anime 2D'), Expanded(child: GridView.count(crossAxisCount: 3, padding: const EdgeInsets.all(24), crossAxisSpacing: 16, mainAxisSpacing: 16, children: [for (final x in [(AppPage.studio, Icons.movie, 'Studio', 'Composer une scène'), (AppPage.scene, Icons.groups, 'Scène', '3 à 6 personnages, ville, combat'), (AppPage.character, Icons.person, 'Personnage', 'Créer les parties, importer un dessin'), (AppPage.rig, Icons.account_tree, 'Squelette', 'Os et liaisons'), (AppPage.animate, Icons.timeline, 'Animation', 'Images-clés et lecture'), (AppPage.face, Icons.face, 'Expressions', 'Jeu d\'acteur du visage'), (AppPage.fx, Icons.auto_awesome, 'FX', 'Impacts et particules'), (AppPage.camera, Icons.videocam, 'Caméra', 'Plans et cadrage'), (AppPage.ai, Icons.smart_toy, 'IA Réalisateur', 'Transforme une consigne en timeline')]) CardBox(child: InkWell(onTap: () => onOpen(x.$1), borderRadius: BorderRadius.circular(18), child: Padding(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(x.$2, size: 36, color: const Color(0xFFE23349)), const Spacer(), Text(x.$3, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text(x.$4, style: TextStyle(color: Colors.white.withOpacity(.55))) ]))))]) )]); }
+class HomePage extends StatelessWidget { const HomePage({super.key, required this.onOpen}); final void Function(AppPage) onOpen; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'SHINRA CORE', subtitle: 'Atelier d\'animation anime 2D'), Expanded(child: GridView.count(crossAxisCount: 3, padding: const EdgeInsets.all(24), crossAxisSpacing: 16, mainAxisSpacing: 16, children: [for (final x in [(AppPage.studio, Icons.movie, 'Studio', 'Composer une scène'), (AppPage.scene, Icons.groups, 'Scène', '3 à 6 personnages, ville, combat'), (AppPage.character, Icons.person, 'Personnage', 'Créer les parties, importer un dessin'), (AppPage.rig, Icons.account_tree, 'Squelette', 'Os et liaisons'), (AppPage.animate, Icons.timeline, 'Animation', 'Images-clés et lecture'), (AppPage.face, Icons.face, 'Expressions', 'Jeu d\'acteur du visage'), (AppPage.fx, Icons.auto_awesome, 'FX', 'Impacts et particules'), (AppPage.camera, Icons.videocam, 'Caméra', 'Plans et cadrage'), (AppPage.ai, Icons.smart_toy, 'IA Réalisateur', 'Transforme une consigne en timeline')]) CardBox(child: InkWell(onTap: () => onOpen(x.$1), borderRadius: BorderRadius.circular(18), child: Padding(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(x.$2, size: 36, color: const Color(0xFFE23349)), const Spacer(), Text(x.$3, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text(x.$4, style: TextStyle(color: Colors.white.withValues(alpha: .55))) ]))))]) )]); }
 
 class ScenePage extends StatefulWidget {
   const ScenePage({super.key, required this.p, required this.onPlay});
@@ -289,7 +320,7 @@ class _ScenePageState extends State<ScenePage> {
           OutlinedButton.icon(
             onPressed: () async {
               final x = await picker.pickImage(source: ImageSource.gallery);
-              if (x != null) { setState(() { p.sceneBackgroundImagePath = x.path; p.background = 'Custom'; p.status = 'Scene background imported'; p.notifyListeners(); }); }
+              if (x != null) { setState(() { p.sceneBackgroundImagePath = x.path; p.background = 'Custom'; p.status = 'Scene background imported'; p.refresh(); }); }
             },
             icon: const Icon(Icons.landscape),
             label: const Text('Importer un fond de scène'),
@@ -312,7 +343,7 @@ class _ScenePageState extends State<ScenePage> {
             _Num('Position X', p.selectedActor.offsetX, (v) => p.setActorOffset(p.selectedActorId, x: v)),
             _Num('Position Y', p.selectedActor.offsetY, (v) => p.setActorOffset(p.selectedActorId, y: v)),
             DropdownButtonFormField<String>(
-              value: p.selectedActor.animationId,
+              initialValue: p.selectedActor.animationId,
               decoration: const InputDecoration(labelText: 'Animation for this character'),
               items: [for (final a in p.animations) DropdownMenuItem(value: a.id, child: Text(a.name))],
               onChanged: (v) { if (v != null) p.setActorAnimation(p.selectedActorId, v); },
@@ -320,7 +351,7 @@ class _ScenePageState extends State<ScenePage> {
             const Divider(height: 24),
             const Text('DIALOGUE', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
             const SizedBox(height: 4),
-            Text('Mouth flaps automatically while a line is playing (not real lip-sync — no audio timing here yet). Shows as a caption bubble.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
+            Text('Mouth flaps automatically while a line is playing (not real lip-sync — no audio timing here yet). Shows as a caption bubble.', style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: .5))),
             const SizedBox(height: 8),
             Row(children: [
               Expanded(child: TextField(controller: dialogueCtrl, decoration: const InputDecoration(hintText: 'What do they say?', isDense: true))),
@@ -344,7 +375,7 @@ class _ScenePageState extends State<ScenePage> {
               ),
           ],
           const SizedBox(height: 8),
-          Text(p.status, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
+          Text(p.status, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: .5))),
         ]))),
       ])),
     ]);
@@ -396,7 +427,7 @@ class _KeyframeTimeline extends StatelessWidget {
 }
 
 class _Transport extends StatelessWidget { const _Transport({required this.p, required this.onPlay}); final ProjectState p; final VoidCallback onPlay; @override Widget build(BuildContext c) => Column(children: [Row(children: [IconButton(onPressed: p.undo, icon: const Icon(Icons.undo)), IconButton(onPressed: p.redo, icon: const Icon(Icons.redo)), IconButton(onPressed: () => p.setPlayhead(0), icon: const Icon(Icons.stop)), IconButton(onPressed: onPlay, icon: Icon(p.playing ? Icons.pause : Icons.play_arrow)), const SizedBox(width: 8), Text('${p.playhead.toStringAsFixed(2)} / ${p.selectedAnimation.duration.toStringAsFixed(2)}s'), const Spacer(), DropdownButton<String>(value: p.selectedAnimationId, items: [for (final a in p.animations) DropdownMenuItem(value: a.id, child: Text(a.name))], onChanged: (v) { if (v != null) { p.selectedAnimationId = v; p.setPlayhead(0); } })]), _KeyframeTimeline(p: p)]); }
-class _Inspector extends StatelessWidget { const _Inspector({required this.p}); final ProjectState p; @override Widget build(BuildContext c) => CardBox(child: ListView(children: [const Text('INSPECTEUR', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1)), const SizedBox(height: 18), Text('Bone: ${p.selectedBone.name}'), const SizedBox(height: 10), _Num('X', p.selectedBone.x, (v) => p.setBone(x: v)), _Num('Y', p.selectedBone.y, (v) => p.setBone(y: v)), _Num('Rotation', p.selectedBone.rotation, (v) => p.setBone(rotation: v)), _Num('Scale', p.selectedBone.scale, (v) => p.setBone(scale: v)), const SizedBox(height: 14), FilledButton.icon(onPressed: p.captureKeyframe, icon: const Icon(Icons.key), label: const Text('Capturer une image-clé')), OutlinedButton(onPressed: p.captureAll, child: const Text('Capturer la pose complète')), const SizedBox(height: 10), Text(p.status, style: TextStyle(color: Colors.white.withOpacity(.5)))])); }
+class _Inspector extends StatelessWidget { const _Inspector({required this.p}); final ProjectState p; @override Widget build(BuildContext c) => CardBox(child: ListView(children: [const Text('INSPECTEUR', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1)), const SizedBox(height: 18), Text('Bone: ${p.selectedBone.name}'), const SizedBox(height: 10), _Num('X', p.selectedBone.x, (v) => p.setBone(x: v)), _Num('Y', p.selectedBone.y, (v) => p.setBone(y: v)), _Num('Rotation', p.selectedBone.rotation, (v) => p.setBone(rotation: v)), _Num('Scale', p.selectedBone.scale, (v) => p.setBone(scale: v)), const SizedBox(height: 14), FilledButton.icon(onPressed: p.captureKeyframe, icon: const Icon(Icons.key), label: const Text('Capturer une image-clé')), OutlinedButton(onPressed: p.captureAll, child: const Text('Capturer la pose complète')), const SizedBox(height: 10), Text(p.status, style: TextStyle(color: Colors.white.withValues(alpha: .5)))])); }
 class _Num extends StatelessWidget { const _Num(this.label, this.value, this.onChanged); final String label; final double value; final ValueChanged<double> onChanged; @override Widget build(BuildContext c) => Row(children: [SizedBox(width: 72, child: Text(label)), Expanded(child: Slider(value: value.clamp(-200, 200).toDouble(), min: -200, max: 200, onChanged: onChanged))]); }
 
 class CharacterPage extends StatefulWidget { const CharacterPage({super.key, required this.p}); final ProjectState p; @override State<CharacterPage> createState() => _CharacterPageState(); }
@@ -409,15 +440,15 @@ class _CharacterPageState extends State<CharacterPage> {
     setState(() => imageEditing = true);
     try {
       final source = await ie.ImageUploadService.loadImage(p.importedImagePath);
-      if (source == null) { p.status = 'Could not read image'; p.notifyListeners(); return; }
+      if (source == null) { p.status = 'Could not read image'; p.refresh(); return; }
       final edited = transform(source);
       final path = await ie.ImageUploadService.saveImage(edited, 'edited');
       p.importedImagePath = path;
       p.status = 'Image edited';
-      p.notifyListeners();
+      p.refresh();
     } catch (err) {
       p.status = 'Image edit failed: $err';
-      p.notifyListeners();
+      p.refresh();
     } finally {
       if (mounted) setState(() => imageEditing = false);
     }
@@ -456,7 +487,7 @@ class _CharacterPageState extends State<CharacterPage> {
     await file.writeAsBytes(bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes));
     p.importedImagePath = file.path;
     p.status = 'Starter character "$chosen" loaded (Kenney, CC0)';
-    p.notifyListeners();
+    p.refresh();
   }
 
   Widget _swatchRow(String label, List<Color> palette, Color current, void Function(Color) onPick) => Padding(
@@ -497,7 +528,7 @@ class _CharacterPageState extends State<CharacterPage> {
                     child: OutlinedButton.icon(
                       onPressed: () async {
                         final path = await Navigator.push<String>(c, MaterialPageRoute(builder: (_) => const DrawCanvasPage()));
-                        if (path != null) { p.importedImagePath = path; p.useImageAsBody = true; p.status = 'Drawing ready'; p.notifyListeners(); }
+                        if (path != null) { p.importedImagePath = path; p.useImageAsBody = true; p.status = 'Drawing ready'; p.refresh(); }
                       },
                       icon: const Icon(Icons.brush),
                       label: const Text('Dessiner'),
@@ -508,7 +539,7 @@ class _CharacterPageState extends State<CharacterPage> {
                     child: FilledButton.icon(
                       onPressed: () async {
                         final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 95);
-                        if (x != null) { p.importedImagePath = x.path; p.status = 'Imported ${x.name}'; p.notifyListeners(); }
+                        if (x != null) { p.importedImagePath = x.path; p.status = 'Imported ${x.name}'; p.refresh(); }
                       },
                       icon: const Icon(Icons.image),
                       label: const Text('Importer'),
@@ -568,7 +599,7 @@ class _CharacterPageState extends State<CharacterPage> {
                 const SizedBox(height: 12),
                 const Text('Scene / background', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
-                Wrap(spacing: 8, runSpacing: 8, children: [for (final s in backgroundStyles) ChoiceChip(label: Text(frLabel(s)), selected: p.background == s, onSelected: (_) { p.setBackground(s); p.notifyListeners(); })]),
+                Wrap(spacing: 8, runSpacing: 8, children: [for (final s in backgroundStyles) ChoiceChip(label: Text(frLabel(s)), selected: p.background == s, onSelected: (_) { p.setBackground(s); p.refresh(); })]),
                 const Divider(height: 28),
                 const Text('PARTIES', style: TextStyle(fontWeight: FontWeight.w800)),
                 for (final part in p.parts) ListTile(dense: true, leading: Icon(part.visible ? Icons.visibility : Icons.visibility_off), title: Text(part.name), subtitle: Text(part.boneId), onTap: () => p.togglePart(part.id)),
@@ -576,7 +607,7 @@ class _CharacterPageState extends State<CharacterPage> {
                   const Divider(height: 28),
                   const Text('OUTILS IMAGE', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
                   const SizedBox(height: 4),
-                  Text('Applied directly to the imported/drawn artwork.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
+                  Text('Applied directly to the imported/drawn artwork.', style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: .5))),
                   const SizedBox(height: 8),
                   Wrap(spacing: 8, runSpacing: 8, children: [
                     OutlinedButton.icon(onPressed: imageEditing ? null : () => _applyImageEdit(p, (i) => ie.ImageUploadService.removeBackground(i)), icon: const Icon(Icons.auto_fix_normal), label: const Text('Enlever le fond')),
@@ -590,7 +621,7 @@ class _CharacterPageState extends State<CharacterPage> {
                   const Divider(height: 28),
                   const Text('IMAGE → LIAISON DES PARTIES', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
                   const SizedBox(height: 4),
-                  Text('Draw a region for each part so it moves on its own bone instead of the whole image moving as one block.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
+                  Text('Draw a region for each part so it moves on its own bone instead of the whole image moving as one block.', style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: .5))),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
                     onPressed: autoMapping ? null : () async {
@@ -672,7 +703,7 @@ class _RigPageState extends State<RigPage> {
           for (final b in p.bones) ListTile(selected: b.id == p.selectedBoneId, leading: const Icon(Icons.circle, size: 10), title: Text(b.name), subtitle: Text(b.parentId == null ? 'Root' : '↳ ${b.parentId}'), onTap: () => p.selectBone(b.id)),
           const Divider(),
           const Text('LIAISON DES PARTIES', style: TextStyle(fontWeight: FontWeight.w800)),
-          for (final part in p.parts) DropdownButtonFormField<String>(key: ValueKey(part.id), value: part.boneId, decoration: InputDecoration(labelText: part.name), items: [for (final b in p.bones) DropdownMenuItem(value: b.id, child: Text(b.name))], onChanged: (v) { if (v != null) p.bindPart(part.id, v); }),
+          for (final part in p.parts) DropdownButtonFormField<String>(key: ValueKey(part.id), initialValue: part.boneId, decoration: InputDecoration(labelText: part.name), items: [for (final b in p.bones) DropdownMenuItem(value: b.id, child: Text(b.name))], onChanged: (v) { if (v != null) p.bindPart(part.id, v); }),
         ]))),
       ])),
     ]);
@@ -948,7 +979,7 @@ class _CropPickerDialogState extends State<_CropPickerDialog> {
         width: boxSize,
         height: boxSize + 40,
         child: Column(children: [
-          Text('Drag to draw the region for this part', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(.6))),
+          Text('Drag to draw the region for this part', style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: .6))),
           const SizedBox(height: 8),
           GestureDetector(
             onPanStart: (d) => setState(() { start = _clamp(d.localPosition); rect = Rect.fromPoints(start!, start!); }),
@@ -959,7 +990,7 @@ class _CropPickerDialogState extends State<_CropPickerDialog> {
               child: Stack(children: [
                 ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(File(widget.imagePath), width: boxSize, height: boxSize, fit: BoxFit.fill)),
                 if (rect != null)
-                  Positioned.fromRect(rect: rect!, child: Container(decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE23349), width: 2), color: const Color(0xFFE23349).withOpacity(.15)))),
+                  Positioned.fromRect(rect: rect!, child: Container(decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE23349), width: 2), color: const Color(0xFFE23349).withValues(alpha: .15)))),
               ]),
             ),
           ),
@@ -1004,7 +1035,7 @@ class _LibraryPageState extends State<LibraryPage> with SingleTickerProviderStat
           child: Row(children: [
             Icon(icon, color: const Color(0xFFE23349)),
             const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), Text(subtitle, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5)))])),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), Text(subtitle, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: .5)))])),
           ]),
         ),
       );
@@ -1121,7 +1152,7 @@ class _ExportPageState extends State<ExportPage> {
                   const SizedBox(height: 20),
                   const Text('Export', style: TextStyle(fontWeight: FontWeight.w800)),
                   const SizedBox(height: 4),
-                  Text('Exports the clip currently selected in Animation Lab ("${p.selectedAnimation.name}") — captured frame by frame from the render below.', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(.6))),
+                  Text('Exports the clip currently selected in Animation Lab ("${p.selectedAnimation.name}") — captured frame by frame from the render below.', style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: .6))),
                   const SizedBox(height: 12),
                   Row(children: [
                     const Text('FPS'),
@@ -1157,12 +1188,12 @@ class _ExportPageState extends State<ExportPage> {
                       label: const Text('Copier le chemin'),
                     ),
                     const SizedBox(height: 8),
-                    Text('Sur Windows/macOS/Linux : sauvegardé directement dans ton dossier Téléchargements. Sur Android : dossier privé de l\'app (pas de plugin de partage supplémentaire pour éviter le conflit de version qui cassait le build Windows) — utilise un gestionnaire de fichiers avec accès aux dossiers d\'app, ou colle le chemin.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.5))),
+                    Text('Sur Windows/macOS/Linux : sauvegardé directement dans ton dossier Téléchargements. Sur Android : dossier privé de l\'app (pas de plugin de partage supplémentaire pour éviter le conflit de version qui cassait le build Windows) — utilise un gestionnaire de fichiers avec accès aux dossiers d\'app, ou colle le chemin.', style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: .5))),
                   ],
                   const SizedBox(height: 20),
                   Text(
                     'MP4 uses a real H.264 encode (FFmpeg via ffmpeg_kit_flutter_new) — not a metadata stub. Honest caveats: this needs flutter pub get + a real device/emulator build to confirm (no compiler in the sandbox that wrote this); Android minSdkVersion may need to be 24+; the x264 encoder is GPL-licensed, which carries redistribution obligations if you ship the app; no audio track is muxed into the export yet.',
-                    style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(.45)),
+                    style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: .45)),
                   ),
                 ]),
               ),

@@ -206,7 +206,7 @@ class _CharacterPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2 + p.camera.x, size.height / 2 + p.camera.y) + _shakeOffset(p);
-    _drawBackground(canvas, size, p.background, p.sceneBackgroundImagePath);
+    _drawBackground(canvas, size, p.background, p.sceneBackgroundImagePath, p.camera.x, p.camera.zoom);
     _drawWeather(canvas, size, p.weather, p.playhead);
     if (p.background == 'Void') {
       final grid = Paint()
@@ -266,7 +266,7 @@ class _CharacterPainter extends CustomPainter {
       // to hand-key it. Anticipation stretch just before, hard squash at the
       // hit, springy rebound after — the "anime punch" feel other tools
       // (MiniMuse, Anime Pose Creator, even CapCut) don't do at the rig level.
-      final squash = _squashFactor(p, actor);
+      final squash = squashFactor(p, actor);
       canvas.save();
       canvas.translate(torso.dx, torso.dy);
       canvas.scale(squash.sx, squash.sy);
@@ -324,15 +324,15 @@ class _CharacterPainter extends CustomPainter {
           // Anime-style hit: a hard white flash on the first frames of the
           // window (not just a growing ring) ÔÇö the classic Naruto/DBS "big
           // hit" beat ÔÇö fading out fast.
-          if (t < .18) canvas.drawRect(Rect.fromLTWH(-2000, -2000, 4000, 4000), Paint()..color = Colors.white.withOpacity((1 - t / .18) * .85));
-          canvas.drawCircle(torso, 20 + t * 70, Paint()..color = Colors.white.withOpacity(fade * .8)..style = PaintingStyle.stroke..strokeWidth = 6 * fade + 1);
-          canvas.drawCircle(torso, 8 + t * 30, Paint()..color = const Color(0xFFFFD34D).withOpacity(fade * .6));
+          if (t < .18) canvas.drawRect(Rect.fromLTWH(-2000, -2000, 4000, 4000), Paint()..color = Colors.white.withValues(alpha: (1 - t / .18) * .85));
+          canvas.drawCircle(torso, 20 + t * 70, Paint()..color = Colors.white.withValues(alpha: fade * .8)..style = PaintingStyle.stroke..strokeWidth = 6 * fade + 1);
+          canvas.drawCircle(torso, 8 + t * 30, Paint()..color = const Color(0xFFFFD34D).withValues(alpha: fade * .6));
           break;
         case 'Dust':
           for (var i = 0; i < 5; i++) {
             final a = i * (math.pi * 2 / 5);
             final r = 10 + t * 34;
-            canvas.drawCircle(torso.translate(math.cos(a) * r, 70 + math.sin(a) * 8), 5 * fade + 1, Paint()..color = const Color(0xFFB9A67E).withOpacity(fade * .5));
+            canvas.drawCircle(torso.translate(math.cos(a) * r, 70 + math.sin(a) * 8), 5 * fade + 1, Paint()..color = const Color(0xFFB9A67E).withValues(alpha: fade * .5));
           }
           break;
         case 'Speed Lines':
@@ -340,24 +340,24 @@ class _CharacterPainter extends CustomPainter {
             final a = i * (math.pi * 2 / 8);
             final inner = torso + Offset(math.cos(a), math.sin(a)) * (30 + t * 10);
             final outer = torso + Offset(math.cos(a), math.sin(a)) * (30 + t * 90);
-            canvas.drawLine(inner, outer, Paint()..color = Colors.white.withOpacity(fade * .55)..strokeWidth = 2);
+            canvas.drawLine(inner, outer, Paint()..color = Colors.white.withValues(alpha: fade * .55)..strokeWidth = 2);
           }
           break;
         case 'Energy Burst':
           for (var i = 1; i <= 3; i++) {
-            canvas.drawCircle(torso, 18 * i + t * 26, Paint()..color = const Color(0xFF6FC7FF).withOpacity(fade * .18)..style = PaintingStyle.stroke..strokeWidth = 3);
+            canvas.drawCircle(torso, 18 * i + t * 26, Paint()..color = const Color(0xFF6FC7FF).withValues(alpha: fade * .18)..style = PaintingStyle.stroke..strokeWidth = 3);
           }
           break;
         case 'Smoke':
           for (var i = 0; i < 3; i++) {
-            canvas.drawCircle(head.translate((i - 1) * 14.0, -50 - t * 40), 12 + t * 10, Paint()..color = Colors.white.withOpacity(fade * .25));
+            canvas.drawCircle(head.translate((i - 1) * 14.0, -50 - t * 40), 12 + t * 10, Paint()..color = Colors.white.withValues(alpha: fade * .25));
           }
           break;
         case 'Spark':
           for (var i = 0; i < 6; i++) {
             final a = i * (math.pi * 2 / 6) + t * 2;
             final p1 = torso + Offset(math.cos(a), math.sin(a)) * (10 + t * 40);
-            canvas.drawLine(torso, p1, Paint()..color = const Color(0xFFFFE97A).withOpacity(fade)..strokeWidth = 2);
+            canvas.drawLine(torso, p1, Paint()..color = const Color(0xFFFFE97A).withValues(alpha: fade)..strokeWidth = 2);
           }
           break;
         case 'Camera Shake':
@@ -566,7 +566,7 @@ class _CharacterPainter extends CustomPainter {
           ..moveTo(head.dx - 30, head.dy - 6)
           ..quadraticBezierTo(head.dx, head.dy - 60, head.dx + 30, head.dy - 6)
           ..quadraticBezierTo(head.dx, head.dy + 4, head.dx - 30, head.dy - 6);
-        canvas.drawPath(hood, paint..color = color.withOpacity(.9));
+        canvas.drawPath(hood, paint..color = color.withValues(alpha: .9));
         break;
       case 'Jacket':
         canvas.drawOval(Rect.fromCenter(center: torso, width: 118, height: 150), paint);
@@ -651,7 +651,7 @@ class _CharacterPainter extends CustomPainter {
     final w = span.width + 20, h = span.height + 16;
     final center = head.translate(0, -84 - h / 2);
     final rect = RRect.fromRectAndRadius(Rect.fromCenter(center: center, width: w, height: h), const Radius.circular(10));
-    final bubble = Paint()..color = Colors.white.withOpacity(.95);
+    final bubble = Paint()..color = Colors.white.withValues(alpha: .95);
     canvas.drawRRect(rect, bubble);
     canvas.drawRRect(rect, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.5..color = Colors.black26);
     final tail = Path()
@@ -730,16 +730,16 @@ void _drawWeather(Canvas canvas, Size size, String weather, double time) {
     final x = (seed * 37 + time * 120) % size.width;
     final y = (seed * 53 + time * 280) % size.height;
     if (weather == 'Rain') {
-      paint.color = Colors.white.withOpacity(.35);
+      paint.color = Colors.white.withValues(alpha: .35);
       canvas.drawLine(Offset(x, y), Offset(x - 4, y + 14), paint);
     } else {
-      paint.color = Colors.white.withOpacity(.55);
+      paint.color = Colors.white.withValues(alpha: .55);
       canvas.drawCircle(Offset(x, y), 2, paint);
     }
   }
 }
 
-void _drawBackground(Canvas canvas, Size size, String style, String customPath) {
+void _drawBackground(Canvas canvas, Size size, String style, String customPath, double cameraX, double cameraZoom) {
   final rect = Offset.zero & size;
   switch (style) {
     case 'Forest':
@@ -756,7 +756,7 @@ void _drawBackground(Canvas canvas, Size size, String style, String customPath) 
     case 'Rainy City':
       canvas.drawRect(rect, Paint()..shader = ui.Gradient.linear(Offset(0, 0), Offset(0, size.height), style == 'Rainy City' ? [const Color(0xFF1A2233), const Color(0xFF2A3348)] : [const Color(0xFF10131F), const Color(0xFF262B45)]));
       final b = Paint()..color = const Color(0xFF0B0E17);
-      final win = Paint()..color = (style == 'Rainy City' ? const Color(0xFF8EB4FF) : const Color(0xFFFFD98A)).withOpacity(.45);
+      final win = Paint()..color = (style == 'Rainy City' ? const Color(0xFF8EB4FF) : const Color(0xFFFFD98A)).withValues(alpha: .45);
       for (var i = 0; i < 7; i++) {
         final w = 40.0 + (i % 3) * 14;
         final x = i * (size.width / 7);
@@ -766,26 +766,41 @@ void _drawBackground(Canvas canvas, Size size, String style, String customPath) 
           for (var wx = x + 6; wx < x + w - 6; wx += 14) canvas.drawRect(Rect.fromLTWH(wx, wy, 6, 8), win);
         }
       }
-      if (style == 'Rainy City') canvas.drawRect(Rect.fromLTWH(0, size.height - 36, size.width, 36), Paint()..color = const Color(0xFF1E2838).withOpacity(.7));
+      // Multi-plane 2.5D depth: distant silhouettes move less than the
+      // foreground when the camera pans. Everything remains lightweight 2D.
+      final far = Paint()..color = const Color(0xFF080A12).withValues(alpha: .42);
+      final near = Paint()..color = const Color(0xFF05060A).withValues(alpha: .72);
+      final parallaxFar = (cameraX * .18) % 180;
+      final parallaxNear = (cameraX * .55) % 220;
+      for (var i = -1; i < 7; i++) {
+        final x = i * 180.0 - parallaxFar;
+        final h = 55.0 + (i.abs() % 4) * 18;
+        canvas.drawRect(Rect.fromLTWH(x, size.height - 95 - h, 120, h), far);
+      }
+      for (var i = -1; i < 6; i++) {
+        final x = i * 220.0 - parallaxNear;
+        canvas.drawRect(Rect.fromLTWH(x, size.height - 42, 170, 42), near);
+      }
+      if (style == 'Rainy City') canvas.drawRect(Rect.fromLTWH(0, size.height - 36, size.width, 36), Paint()..color = const Color(0xFF1E2838).withValues(alpha: .7));
       break;
     case 'Neon Street':
       canvas.drawRect(rect, Paint()..shader = ui.Gradient.linear(Offset(0, 0), Offset(0, size.height), [const Color(0xFF120818), const Color(0xFF2A1038)]));
       final neon = [const Color(0xFFFF4FD8), const Color(0xFF4FD8FF), const Color(0xFF9DFF4F)];
       for (var i = 0; i < 5; i++) {
         final x = size.width * (i + .3) / 5;
-        canvas.drawRect(Rect.fromLTWH(x, size.height * .35, 8, size.height * .65), Paint()..color = neon[i % 3].withOpacity(.35));
-        canvas.drawCircle(Offset(x + 4, size.height * .3), 18, Paint()..color = neon[i % 3].withOpacity(.5));
+        canvas.drawRect(Rect.fromLTWH(x, size.height * .35, 8, size.height * .65), Paint()..color = neon[i % 3].withValues(alpha: .35));
+        canvas.drawCircle(Offset(x + 4, size.height * .3), 18, Paint()..color = neon[i % 3].withValues(alpha: .5));
       }
       break;
     case 'Dojo':
       canvas.drawRect(rect, Paint()..shader = ui.Gradient.linear(Offset(0, 0), Offset(0, size.height), [const Color(0xFF2B1E16), const Color(0xFF16100B)]));
       final floor = Paint()..color = const Color(0xFF120C08);
       for (var y = size.height * .6; y < size.height; y += 22) canvas.drawLine(Offset(0, y), Offset(size.width, y), floor..strokeWidth = 2);
-      canvas.drawCircle(Offset(size.width / 2, size.height * .22), 46, Paint()..color = const Color(0xFFFFD98A).withOpacity(.18));
+      canvas.drawCircle(Offset(size.width / 2, size.height * .22), 46, Paint()..color = const Color(0xFFFFD98A).withValues(alpha: .18));
       break;
     case 'Sunset Sky':
       canvas.drawRect(rect, Paint()..shader = ui.Gradient.linear(Offset(0, 0), Offset(0, size.height), [const Color(0xFFFF8A4D), const Color(0xFF3A2151)]));
-      canvas.drawCircle(Offset(size.width / 2, size.height * .42), 60, Paint()..color = const Color(0xFFFFE1A8).withOpacity(.85));
+      canvas.drawCircle(Offset(size.width / 2, size.height * .42), 60, Paint()..color = const Color(0xFFFFE1A8).withValues(alpha: .85));
       break;
     case 'Custom':
       break; // drawn as a separate Image.file widget layer beneath this canvas — see ShinraViewport

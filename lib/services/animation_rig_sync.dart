@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/rig.dart';
 
@@ -49,23 +51,16 @@ class AnimationRigSync {
     final result = <String, PoseState>{};
     final normalizedTime = _normalizeTime(time, animation);
 
-    for (var part in parts.values) {
-      final track = animation.tracks[part.boneId];
-      if (track == null) continue;
-
+    for (final boneId in animation.tracks.keys) {
+      final track = animation.tracks[boneId];
+      if (track == null || track.keys.isEmpty) continue;
       final keyframes = track.keys;
-      if (keyframes.isEmpty) continue;
-
-      // Find surrounding keyframes
       PoseKeyframe? before, after;
       for (var i = 0; i < keyframes.length; i++) {
         if (keyframes[i].time <= normalizedTime) before = keyframes[i];
         if (keyframes[i].time >= normalizedTime && after == null) after = keyframes[i];
       }
-
-      // Interpolate
-      final pose = _interpolateBetween(before, after, normalizedTime);
-      result[part.boneId] = pose;
+      result[boneId] = _interpolateBetween(before, after, normalizedTime);
     }
 
     return result;
@@ -121,8 +116,8 @@ class AnimationRigSync {
   /// Angle interpolation (handles 360° wrap).
   static double _lerpAngle(double a, double b, double t) {
     var angle = b - a;
-    while (angle > 180) angle -= 360;
-    while (angle < -180) angle += 360;
+    while (angle > math.pi) angle -= math.pi * 2;
+    while (angle < -math.pi) angle += math.pi * 2;
     return a + angle * t;
   }
 
@@ -169,6 +164,13 @@ class AnimationRigSync {
 
 /// Character appearance configuration.
 /// Supports: procedural, image upload, drawing, or mixture.
+enum AppearanceType {
+  procedural,
+  imageUpload,
+  drawn,
+  hybrid,
+}
+
 class CharacterAppearance {
   CharacterAppearance({
     this.type = AppearanceType.procedural,
@@ -183,13 +185,6 @@ class CharacterAppearance {
     this.uploadedImageBytes,
     this.drawnImageBytes,
   });
-
-  enum AppearanceType {
-    procedural, // Generated from colors
-    imageUpload, // PNG/JPG file
-    drawn, // Canvas drawing
-    hybrid, // Mix (e.g., drawn head + procedural body)
-  }
 
   final AppearanceType type;
 

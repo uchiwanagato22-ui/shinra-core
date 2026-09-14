@@ -71,7 +71,7 @@ class EnhancedImageSegmentation {
 
         // Magnitude
         final magnitude = (gx.abs() + gy.abs()).clamp(0, 255).toInt();
-        result.setPixelSafe(x, y, img.ColorUint8.rgba(magnitude, magnitude, magnitude, 255));
+        result.setPixel(x, y, img.ColorUint8.rgba(magnitude, magnitude, magnitude, 255));
       }
     }
 

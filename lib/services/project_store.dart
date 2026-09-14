@@ -19,10 +19,10 @@ class ProjectStore {
       'mouthShape': p.mouthShape,
       'eyeLookX': p.eyeLookX,
       'eyeLookY': p.eyeLookY,
-      'skin': p.skinColor.value,
-      'hair': p.hairColor.value,
-      'eyes': p.eyeColor.value,
-      'clothes': p.clothesColor.value,
+      'skin': p.skinColor.toARGB32(),
+      'hair': p.hairColor.toARGB32(),
+      'eyes': p.eyeColor.toARGB32(),
+      'clothes': p.clothesColor.toARGB32(),
       'hairStyle': p.hairStyle,
       'eyeShape': p.eyeShape,
       'outfitStyle': p.outfitStyle,
@@ -53,13 +53,13 @@ class ProjectStore {
     };
     await prefs.setString(key, jsonEncode(data));
     p.status = 'Project saved';
-    p.notifyListeners();
+    p.refresh();
   }
 
   static Future<void> load(ProjectState p) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(key);
-    if (raw == null) { p.status = 'No saved project'; p.notifyListeners(); return; }
+    if (raw == null) { p.status = 'No saved project'; p.refresh(); return; }
     final d = jsonDecode(raw) as Map<String, dynamic>;
     p.importedImagePath = (d['image'] as String?) ?? '';
     p.useImageAsBody = (d['useImageAsBody'] as bool?) ?? false;
@@ -124,7 +124,7 @@ class ProjectStore {
     p.dialogue..clear()..addAll([for (final item in (d['dialogue'] as List? ?? const [])) DialogueCue(id: item['id'] as String, actorId: item['actor'] as String, text: item['text'] as String, time: (item['time'] as num).toDouble(), duration: (item['duration'] as num).toDouble(), clipId: item['clip'] as String)]);
     if (d['selectedAnimationId'] != null && p.animations.any((c) => c.id == d['selectedAnimationId'])) p.selectedAnimationId = d['selectedAnimationId'] as String;
     p.status = 'Project loaded';
-    p.notifyListeners();
+    p.refresh();
   }
 }
 

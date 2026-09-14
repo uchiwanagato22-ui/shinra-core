@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'video_export.dart';
 import 'gif_export.dart';
 import '../models/rig.dart';
-import 'dart:io';
 
 /// Central export handler that manages MP4, GIF, and PNG exports.
 class ExportHandler {
@@ -36,7 +35,7 @@ class ExportDialog extends StatefulWidget {
 }
 
 class _ExportDialogState extends State<ExportDialog> {
-  VideoExporter.ExportFormat format = VideoExporter.ExportFormat.tiktok;
+  VideoExportFormat format = VideoExportFormat.tiktok;
   int fps = 30;
   bool isExporting = false;
   double progress = 0;
@@ -56,7 +55,7 @@ class _ExportDialogState extends State<ExportDialog> {
             Wrap(
               spacing: 8,
               children: [
-                for (final fmt in VideoExporter.ExportFormat.values)
+                for (final fmt in VideoExportFormat.values)
                   ChoiceChip(
                     label: Text(fmt.name.toUpperCase()),
                     selected: format == fmt,
@@ -112,20 +111,8 @@ class _ExportDialogState extends State<ExportDialog> {
     try {
       String resultPath;
 
-      if (format == VideoExporter.ExportFormat.gif) {
+      if (format == VideoExportFormat.gif) {
         resultPath = await GifExporter.export(
-          widget.viewportKey,
-          widget.project,
-          fps: fps,
-          onProgress: (current, total) {
-            setState(() {
-              progress = current / total;
-              status = 'Rendering frame $current / $total';
-            });
-          },
-        );
-      } else if (format == VideoExporter.ExportFormat.png) {
-        resultPath = await VideoExporter.exportPngSequence(
           widget.viewportKey,
           widget.project,
           fps: fps,

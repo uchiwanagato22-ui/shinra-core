@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show ChangeNotifier;
 import 'package:flutter/material.dart' show Color, Rect;
 import '../services/image_segmentation.dart';
 import '../services/animation_import.dart';
+import '../services/anime_motion_engine.dart';
 
 enum BoneType { root, head, torso, arm, hand, leg, foot }
 
@@ -13,6 +14,78 @@ enum AnimCategory { movement, combat, face, fx }
 /// Controls how motion arrives at an incoming pose.  This lets one clip mix
 /// calm dialogue, anticipation, and sharp anime impacts.
 enum KeyframeEasing { linear, smooth, easeIn, easeOut, impact }
+
+
+/// A weighted vertex used by the optional deformable 2D mesh pipeline.
+/// Coordinates are normalized to the source artwork (0..1), while influences
+/// reference the same bone ids used by the live rig.  This keeps imported,
+/// drawn and library characters on one animation model.
+class MeshInfluence {
+  MeshInfluence({required this.boneId, required this.weight});
+  final String boneId;
+  final double weight;
+}
+
+class MeshVertex {
+  MeshVertex({required this.x, required this.y, this.u = 0, this.v = 0, List<MeshInfluence>? influences})
+      : influences = influences ?? const [];
+  double x;
+  double y;
+  double u;
+  double v;
+  final List<MeshInfluence> influences;
+}
+
+class DeformMesh {
+  DeformMesh({this.name = 'Character Mesh'});
+  String name;
+  final List<MeshVertex> vertices = [];
+  final List<int> indices = [];
+  bool enabled = false;
+  bool autoWeights = true;
+
+  DeformMesh copy() {
+    final out = DeformMesh(name: name)
+      ..enabled = enabled
+      ..autoWeights = autoWeights;
+    out.vertices.addAll(vertices.map((v) => MeshVertex(
+      x: v.x,
+      y: v.y,
+      u: v.u,
+      v: v.v,
+      influences: v.influences.map((i) => MeshInfluence(boneId: i.boneId, weight: i.weight)).toList(),
+    )));
+    out.indices.addAll(indices);
+    return out;
+  }
+}
+
+/// A non-destructive animation layer.  Base locomotion can therefore be
+/// combined with an upper-body action, facial pass or secondary motion pass
+/// without baking a new animation clip for every combination.
+class AnimationLayer {
+  AnimationLayer({required this.id, required this.name, this.clipId = '', this.weight = 1, Set<String>? maskedBones})
+      : maskedBones = maskedBones ?? <String>{};
+  final String id;
+  String name;
+  String clipId;
+  double weight;
+  bool enabled = true;
+  final Set<String> maskedBones;
+}
+
+/// Optional two-bone IK target.  A target is expressed in character-local
+/// coordinates so it remains stable when the camera moves or the actor is
+/// mirrored.
+class IKTarget {
+  IKTarget({required this.id, required this.endBoneId, required this.x, required this.y, this.enabled = true, this.weight = 1});
+  final String id;
+  final String endBoneId;
+  double x;
+  double y;
+  bool enabled;
+  double weight;
+}
 
 const skinPalette = [Color(0xFFE9B18E), Color(0xFFF6D3B0), Color(0xFFC98A5B), Color(0xFF8D5A3C), Color(0xFF5C3A28)];
 const hairPalette = [Color(0xFF151722), Color(0xFF3B2A1E), Color(0xFF8A4B2A), Color(0xFFC9A227), Color(0xFFB23A48), Color(0xFF4A6FE0), Color(0xFFE0E0E0)];
@@ -59,6 +132,9 @@ class SceneActor {
   bool accBelt = false;
   List<Bone> bones = [for (final b in defaultBones()) b.copy()];
   List<CharacterPart> parts = [for (final p in defaultParts()) CharacterPart(id: p.id, name: p.name, type: p.type, boneId: p.boneId, visible: p.visible, crop: p.crop)];
+  DeformMesh mesh = DeformMesh();
+  final List<AnimationLayer> animationLayers = [];
+  final List<IKTarget> ikTargets = [];
 
   void captureFrom(ProjectState p) {
     importedImagePath = p.importedImagePath;
@@ -83,6 +159,13 @@ class SceneActor {
     animationId = p.selectedAnimationId;
     bones = [for (final b in p.bones) b.copy()];
     parts = [for (final pt in p.parts) CharacterPart(id: pt.id, name: pt.name, type: pt.type, boneId: pt.boneId, visible: pt.visible, locked: pt.locked, x: pt.x, y: pt.y, rotation: pt.rotation, scale: pt.scale, crop: pt.crop)];
+    mesh = p.mesh.copy();
+    animationLayers
+      ..clear()
+      ..addAll(p.animationLayers.map((l) => AnimationLayer(id: l.id, name: l.name, clipId: l.clipId, weight: l.weight, maskedBones: {...l.maskedBones})..enabled = l.enabled));
+    ikTargets
+      ..clear()
+      ..addAll(p.ikTargets.map((t) => IKTarget(id: t.id, endBoneId: t.endBoneId, x: t.x, y: t.y, enabled: t.enabled, weight: t.weight)));
   }
 
   void applyTo(ProjectState p) {
@@ -114,6 +197,13 @@ class SceneActor {
       final target = p.parts.where((x) => x.id == pt.id).firstOrNull;
       if (target != null) { target.boneId = pt.boneId; target.visible = pt.visible; target.crop = pt.crop; }
     }
+    p.mesh = mesh.copy();
+    p.animationLayers
+      ..clear()
+      ..addAll(animationLayers.map((l) => AnimationLayer(id: l.id, name: l.name, clipId: l.clipId, weight: l.weight, maskedBones: {...l.maskedBones})..enabled = l.enabled));
+    p.ikTargets
+      ..clear()
+      ..addAll(ikTargets.map((t) => IKTarget(id: t.id, endBoneId: t.endBoneId, x: t.x, y: t.y, enabled: t.enabled, weight: t.weight)));
   }
 }
 
@@ -259,6 +349,9 @@ List<CharacterPart> defaultParts() => [
 extension _IterableFirstOrNull<T> on Iterable<T> { T? get firstOrNull => isEmpty ? null : first; }
 
 class ProjectState extends ChangeNotifier {
+  /// Public UI refresh hook for controllers/services that mutate the model.
+  /// Keeps ChangeNotifier protected API usage inside the model itself.
+  void refresh() => notifyListeners();
   ProjectState() {
     bones = defaultBones();
     parts = defaultParts();
@@ -273,6 +366,9 @@ class ProjectState extends ChangeNotifier {
   List<Bone> bones = [];
   List<CharacterPart> parts = [];
   List<AnimationClip> animations = [];
+  DeformMesh mesh = DeformMesh();
+  final List<AnimationLayer> animationLayers = [];
+  final List<IKTarget> ikTargets = [];
   final CameraState camera = CameraState();
   final List<FxEvent> fx = [];
   final List<AudioCue> audio = [];
@@ -815,6 +911,9 @@ class ProjectState extends ChangeNotifier {
     for (final actor in actors) {
       final clip = animations.firstWhere((a) => a.id == actor.animationId, orElse: () => selectedAnimation);
       _applyClipToBones(actor.bones, clip, time);
+      AnimeMotionEngine.applyAnimationLayers(actor.bones, animations, actor.animationLayers, time, _applyClipToBones);
+      AnimeMotionEngine.applySecondaryMotion(actor.bones, clip.id, time);
+      AnimeMotionEngine.solveIK(actor.bones, actor.ikTargets);
     }
     selectedActor.applyTo(this);
     final clip = selectedAnimation;

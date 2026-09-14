@@ -26,6 +26,19 @@ import '../models/rig.dart';
 ///   knowing before you publish, not something I can decide for you.
 /// - No audio track is muxed in yet (the timeline's audio cues aren't
 ///   baked into the export) — video only for now.
+
+enum VideoExportFormat { tiktok, youtube, instagram, gif, png }
+
+extension VideoExportFormatInfo on VideoExportFormat {
+  int get width => switch (this) { VideoExportFormat.tiktok => 1080, VideoExportFormat.youtube => 1920, VideoExportFormat.instagram => 1080, VideoExportFormat.gif => 1080, VideoExportFormat.png => 1080 };
+  int get height => switch (this) { VideoExportFormat.tiktok => 1920, VideoExportFormat.youtube => 1080, VideoExportFormat.instagram => 1080, VideoExportFormat.gif => 1080, VideoExportFormat.png => 1080 };
+}
+
+class VideoExporter {
+  static Future<String> exportMp4(GlobalKey key, ProjectState project, int width, int height, {int fps = 30, void Function(int,int)? onProgress}) =>
+      Mp4Exporter.export(key, project, fps: fps, onProgress: (phase,current,total) => onProgress?.call(current,total));
+}
+
 class Mp4Exporter {
   static Future<String> export(
     GlobalKey boundaryKey,
