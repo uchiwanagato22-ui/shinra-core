@@ -373,6 +373,7 @@ class _CharacterPainter extends CustomPainter {
   /// did anything visible (red eyes), the rest were cosmetic no-ops.
   void _drawFace(Canvas canvas, Offset head, SceneActor actor, String expression, double timeline, DialogueCue? dialogue) {
     double browAngle = 0, browLift = 0, mouthCurve = 0, eyeScale = 1;
+    if(actor.facialRigEnabled){browAngle=(actor.browRight-actor.browLeft)*.45;browLift=-(actor.browLeft+actor.browRight)*5;eyeScale=1+(((actor.eyeOpenLeft+actor.eyeOpenRight)/2)-1)*.45;}
     var mouthOpen = false;
     var mouthWidth = 20.0;
     var mouthHeight = 14.0;
@@ -452,8 +453,9 @@ class _CharacterPainter extends CustomPainter {
     for (final side in [-1, 1]) {
       final ecx = head.dx + side * 17;
       final c = Offset(ecx, head.dy);
-      final pupil = c.translate(actor.eyeLookX * 2.5, actor.eyeLookY * 2.5);
-      if (blinking) {
+      final pupil = c.translate(actor.eyeLookX.clamp(-1,1).toDouble()*2.5, actor.eyeLookY.clamp(-1,1).toDouble()*2.5);
+      final openness=side<0?actor.eyeOpenLeft:actor.eyeOpenRight;
+      if (blinking || openness < .08) {
         canvas.drawLine(c.translate(-8, 0), c.translate(8, 0), Paint()..color = actor.hairColor..strokeWidth = 2.5..strokeCap = StrokeCap.round);
         continue;
       }
@@ -464,16 +466,16 @@ class _CharacterPainter extends CustomPainter {
             ..quadraticBezierTo(c.dx, c.dy - 5 * eyeScale, c.dx + 9 * eyeScale, c.dy - 2 * eyeScale)
             ..quadraticBezierTo(c.dx, c.dy + 4 * eyeScale, c.dx - 9 * eyeScale, c.dy);
           canvas.drawPath(path, eyeWhite);
-          canvas.drawCircle(pupil.translate(1.0 * side, 0), 3 * eyeScale, eyeColor);
+          canvas.drawCircle(pupil.translate(1.0 * side, 0), 3 * eyeScale * actor.pupilScale, eyeColor);
           break;
         case 'Sleepy':
           canvas.drawOval(Rect.fromCenter(center: c, width: 14 * eyeScale, height: 6 * eyeScale), eyeWhite);
-          canvas.drawCircle(pupil, 3 * eyeScale, eyeColor);
+          canvas.drawCircle(pupil, 3 * eyeScale * actor.pupilScale, eyeColor);
           canvas.drawRect(Rect.fromLTWH(c.dx - 8 * eyeScale, c.dy - 6 * eyeScale, 16 * eyeScale, 4 * eyeScale), lidPaint);
           break;
         case 'Wide':
           canvas.drawCircle(c, 8 * eyeScale, eyeWhite);
-          canvas.drawCircle(pupil, 4.2 * eyeScale, eyeColor);
+          canvas.drawCircle(pupil, 4.2 * eyeScale * actor.pupilScale, eyeColor);
           canvas.drawCircle(pupil.translate(-1.5, -1.5), 1.4 * eyeScale, Paint()..color = Colors.white);
           break;
         case 'Cat':
@@ -486,25 +488,37 @@ class _CharacterPainter extends CustomPainter {
           break;
         default: // Round
           canvas.drawCircle(c, 6 * eyeScale, eyeWhite);
-          canvas.drawCircle(pupil, 3 * eyeScale, eyeColor);
+          canvas.drawCircle(pupil, 3 * eyeScale * actor.pupilScale, eyeColor);
       }
     }
 
+    mouthWidth*=actor.mouthWidth; if(actor.mouthOpen>.05){mouthOpen=true;mouthHeight=math.max(mouthHeight,8+actor.mouthOpen*18);}
     final mouthPaint = Paint()
       ..color = const Color(0xFF7C3030)
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
+    canvas.save(); canvas.translate(head.dx,head.dy); canvas.rotate(actor.headTilt); canvas.translate(-head.dx,-head.dy);
+    // Real per-side corner lift, driven by the actual facial rig values
+    // (actor.mouthCornerLeft/Right — settable via sliders, keyframes, or
+    // an expression preset) instead of the old hardcoded "asymmetric"
+    // flag that only reacted to the literal 'Smirk' label. This is what
+    // makes a smirk/evil grin actually render instead of just being
+    // stored, silently, in the model.
+    const cornerScale = 9.0;
+    final liftL = mouthCurve + actor.mouthCornerLeft * cornerScale;
+    final liftR = mouthCurve + actor.mouthCornerRight * cornerScale;
     final mCenter = head.translate(asymmetric ? 3 : 0, 24);
     if (mouthOpen) {
       canvas.drawOval(Rect.fromCenter(center: mCenter, width: mouthWidth, height: mouthHeight), Paint()..color = const Color(0xFF3A1414));
       canvas.drawOval(Rect.fromCenter(center: mCenter, width: mouthWidth, height: mouthHeight), mouthPaint);
     } else {
       final path = Path()
-        ..moveTo(mCenter.dx - 9, mCenter.dy)
-        ..quadraticBezierTo(mCenter.dx, mCenter.dy - mouthCurve, mCenter.dx + 9, mCenter.dy - (asymmetric ? mouthCurve * 1.6 : 0));
+        ..moveTo(mCenter.dx - 9, mCenter.dy - liftL)
+        ..quadraticBezierTo(mCenter.dx, mCenter.dy - mouthCurve, mCenter.dx + 9, mCenter.dy - liftR);
       canvas.drawPath(path, mouthPaint);
     }
+    canvas.restore();
   }
 
 

@@ -124,6 +124,11 @@ class SceneActor {
   String mouthShape = 'Auto';
   double eyeLookX = 0;
   double eyeLookY = 0;
+  double browLeft = 0, browRight = 0;
+  double eyeOpenLeft = 1, eyeOpenRight = 1, pupilScale = 1;
+  double mouthWidth = 1, mouthOpen = 0, mouthCornerLeft = 0, mouthCornerRight = 0;
+  double jawOpen = 0, headTilt = 0;
+  bool facialRigEnabled = true;
   bool accGlasses = false;
   bool accHeadband = false;
   bool accScarf = false;
@@ -150,6 +155,7 @@ class SceneActor {
     mouthShape = p.mouthShape;
     eyeLookX = p.eyeLookX;
     eyeLookY = p.eyeLookY;
+    browLeft=p.browLeft; browRight=p.browRight; eyeOpenLeft=p.eyeOpenLeft; eyeOpenRight=p.eyeOpenRight; pupilScale=p.pupilScale; mouthWidth=p.mouthWidth; mouthOpen=p.mouthOpen; mouthCornerLeft=p.mouthCornerLeft; mouthCornerRight=p.mouthCornerRight; jawOpen=p.jawOpen; headTilt=p.headTilt; facialRigEnabled=p.facialRigEnabled;
     accGlasses = p.accGlasses;
     accHeadband = p.accHeadband;
     accScarf = p.accScarf;
@@ -182,6 +188,7 @@ class SceneActor {
     p.mouthShape = mouthShape;
     p.eyeLookX = eyeLookX;
     p.eyeLookY = eyeLookY;
+    p.browLeft=browLeft; p.browRight=browRight; p.eyeOpenLeft=eyeOpenLeft; p.eyeOpenRight=eyeOpenRight; p.pupilScale=pupilScale; p.mouthWidth=mouthWidth; p.mouthOpen=mouthOpen; p.mouthCornerLeft=mouthCornerLeft; p.mouthCornerRight=mouthCornerRight; p.jawOpen=jawOpen; p.headTilt=headTilt; p.facialRigEnabled=facialRigEnabled;
     p.accGlasses = accGlasses;
     p.accHeadband = accHeadband;
     p.accScarf = accScarf;
@@ -262,6 +269,17 @@ class BoneTrack {
   }
 }
 
+class FacePoseKeyframe {
+  FacePoseKeyframe({required this.time, this.browLeft=0, this.browRight=0, this.eyeOpenLeft=1, this.eyeOpenRight=1, this.pupilX=0, this.pupilY=0, this.mouthWidth=1, this.mouthOpen=0, this.mouthCornerLeft=0, this.mouthCornerRight=0, this.jawOpen=0, this.headTilt=0, this.easing=KeyframeEasing.smooth});
+  final double time;
+  final double browLeft, browRight, eyeOpenLeft, eyeOpenRight, pupilX, pupilY, mouthWidth, mouthOpen, mouthCornerLeft, mouthCornerRight, jawOpen, headTilt;
+  KeyframeEasing easing;
+}
+class FaceTrack {
+  final List<FacePoseKeyframe> keys=[];
+  void upsert(FacePoseKeyframe k) { keys.removeWhere((x)=>(x.time-k.time).abs()<.001); keys.add(k); keys.sort((a,b)=>a.time.compareTo(b.time)); }
+}
+
 class AnimationClip {
   AnimationClip({required this.id, required this.name, required this.category, this.duration = 2.0, this.loop = true});
   final String id;
@@ -270,6 +288,7 @@ class AnimationClip {
   double duration;
   bool loop;
   final Map<String, BoneTrack> tracks = {};
+  final FaceTrack faceTrack = FaceTrack();
 
   BoneTrack track(String boneId) => tracks.putIfAbsent(boneId, () => BoneTrack(boneId: boneId));
 }
@@ -315,18 +334,28 @@ class DialogueCue {
 
 Bone makeBone(String id, String name, BoneType type, String? parent, double x, double y, double length, [double rotation = 0]) => Bone(id: id, name: name, type: type, parentId: parent, x: x, y: y, length: length, rotation: rotation);
 
+// Arms and legs are two segments each (upper+forearm, thigh+shin) instead
+// of one rigid piece — a real elbow/knee joint to pose, closer to how a
+// Blender-style armature bends, instead of the whole limb rotating as one
+// block from the shoulder/hip. Old saves only restore x/y/rotation/scale by
+// bone id (see project_store.dart), so this is backward compatible: the new
+// bones simply start at their rest pose on an old project.
 List<Bone> defaultBones() => [
   makeBone('root', 'Root', BoneType.root, null, 0, 110, 20),
   makeBone('torso', 'Torso', BoneType.torso, 'root', 0, 0, 90),
   makeBone('head', 'Head', BoneType.head, 'torso', 0, -85, 45),
-  makeBone('arm_l', 'Arm L', BoneType.arm, 'torso', -45, -15, 65, -0.35),
-  makeBone('hand_l', 'Hand L', BoneType.hand, 'arm_l', -52, 55, 25, -0.15),
-  makeBone('arm_r', 'Arm R', BoneType.arm, 'torso', 45, -15, 65, 0.35),
-  makeBone('hand_r', 'Hand R', BoneType.hand, 'arm_r', 52, 55, 25, 0.15),
-  makeBone('leg_l', 'Leg L', BoneType.leg, 'root', -22, 20, 90),
-  makeBone('foot_l', 'Foot L', BoneType.foot, 'leg_l', -10, 88, 30),
-  makeBone('leg_r', 'Leg R', BoneType.leg, 'root', 22, 20, 90),
-  makeBone('foot_r', 'Foot R', BoneType.foot, 'leg_r', 10, 88, 30),
+  makeBone('arm_l', 'Arm L', BoneType.arm, 'torso', -45, -15, 40, -0.35),
+  makeBone('forearm_l', 'Forearm L', BoneType.arm, 'arm_l', -6, 38, 35, 0.05),
+  makeBone('hand_l', 'Hand L', BoneType.hand, 'forearm_l', -4, 34, 20, -0.1),
+  makeBone('arm_r', 'Arm R', BoneType.arm, 'torso', 45, -15, 40, 0.35),
+  makeBone('forearm_r', 'Forearm R', BoneType.arm, 'arm_r', 6, 38, 35, -0.05),
+  makeBone('hand_r', 'Hand R', BoneType.hand, 'forearm_r', 4, 34, 20, 0.1),
+  makeBone('leg_l', 'Leg L', BoneType.leg, 'root', -22, 20, 55),
+  makeBone('shin_l', 'Shin L', BoneType.leg, 'leg_l', 0, 52, 50, 0.02),
+  makeBone('foot_l', 'Foot L', BoneType.foot, 'shin_l', 0, 46, 28),
+  makeBone('leg_r', 'Leg R', BoneType.leg, 'root', 22, 20, 55),
+  makeBone('shin_r', 'Shin R', BoneType.leg, 'leg_r', 0, 52, 50, -0.02),
+  makeBone('foot_r', 'Foot R', BoneType.foot, 'shin_r', 0, 46, 28),
 ];
 
 List<CharacterPart> defaultParts() => [
@@ -337,9 +366,13 @@ List<CharacterPart> defaultParts() => [
   CharacterPart(id: 'mouth', name: 'Mouth', type: PartType.mouth, boneId: 'head'),
   CharacterPart(id: 'clothes', name: 'Clothes', type: PartType.clothes, boneId: 'torso'),
   CharacterPart(id: 'arm_l', name: 'Arm L', type: PartType.body, boneId: 'arm_l'),
+  CharacterPart(id: 'forearm_l', name: 'Forearm L', type: PartType.body, boneId: 'forearm_l'),
   CharacterPart(id: 'arm_r', name: 'Arm R', type: PartType.body, boneId: 'arm_r'),
+  CharacterPart(id: 'forearm_r', name: 'Forearm R', type: PartType.body, boneId: 'forearm_r'),
   CharacterPart(id: 'leg_l', name: 'Leg L', type: PartType.body, boneId: 'leg_l'),
+  CharacterPart(id: 'shin_l', name: 'Shin L', type: PartType.body, boneId: 'shin_l'),
   CharacterPart(id: 'leg_r', name: 'Leg R', type: PartType.body, boneId: 'leg_r'),
+  CharacterPart(id: 'shin_r', name: 'Shin R', type: PartType.body, boneId: 'shin_r'),
   CharacterPart(id: 'hand_l', name: 'Hand L', type: PartType.hand, boneId: 'hand_l'),
   CharacterPart(id: 'hand_r', name: 'Hand R', type: PartType.hand, boneId: 'hand_r'),
   CharacterPart(id: 'shoes_l', name: 'Shoe L', type: PartType.shoes, boneId: 'foot_l'),
@@ -408,6 +441,11 @@ class ProjectState extends ChangeNotifier {
   /// It belongs to the selected character, so each actor can look elsewhere.
   double eyeLookX = 0;
   double eyeLookY = 0;
+  double browLeft=0, browRight=0;
+  double eyeOpenLeft=1, eyeOpenRight=1, pupilScale=1;
+  double mouthWidth=1, mouthOpen=0, mouthCornerLeft=0, mouthCornerRight=0;
+  double jawOpen=0, headTilt=0;
+  bool facialRigEnabled=true;
   String status = 'Ready';
   final List<Map<String, List<double>>> _undo = [];
   final List<Map<String, List<double>>> _redo = [];
@@ -680,7 +718,20 @@ class ProjectState extends ChangeNotifier {
     return r;
   }
   void setTool(String value) { tool = value; notifyListeners(); }
-  void setExpression(String value) { expression = value; persistSelectedActor(); notifyListeners(); }
+  void setExpression(String value) {
+    expression=value;
+    switch(value){
+      case 'Happy': setFaceControls(browLeft:-.15,browRight:-.15,eyeOpenLeft:.78,eyeOpenRight:.78,mouthWidth:1.15,mouthOpen:.08,mouthCornerLeft:1,mouthCornerRight:1); break;
+      case 'Angry': setFaceControls(browLeft:.65,browRight:-.65,eyeOpenLeft:.68,eyeOpenRight:.68,mouthWidth:1.1,mouthOpen:.12,mouthCornerLeft:-.35,mouthCornerRight:-.35); break;
+      case 'Sad': setFaceControls(browLeft:-.45,browRight:.45,eyeOpenLeft:.7,eyeOpenRight:.7,mouthWidth:.9,mouthCornerLeft:-.7,mouthCornerRight:-.7); break;
+      case 'Surprised': setFaceControls(browLeft:-.8,browRight:-.8,eyeOpenLeft:1.35,eyeOpenRight:1.35,mouthWidth:.9,mouthOpen:.75,jawOpen:.55); break;
+      case 'Terrifying': setFaceControls(browLeft:.8,browRight:.8,eyeOpenLeft:1.15,eyeOpenRight:1.15,pupilScale:.7,mouthWidth:1.25,mouthOpen:.65,jawOpen:.45); break;
+      case 'Determined': setFaceControls(browLeft:.4,browRight:-.4,eyeOpenLeft:.72,eyeOpenRight:.72,mouthWidth:1.05); break;
+      case 'Smirk': setFaceControls(browLeft:-.2,browRight:.15,eyeOpenLeft:.85,eyeOpenRight:.85,mouthWidth:1.15,mouthCornerLeft:-.2,mouthCornerRight:.9); break;
+      default: setFaceControls(browLeft:0,browRight:0,eyeOpenLeft:1,eyeOpenRight:1,pupilScale:1,mouthWidth:1,mouthOpen:0,mouthCornerLeft:0,mouthCornerRight:0,jawOpen:0); break;
+    }
+    persistSelectedActor(); notifyListeners();
+  }
   void setMouthShape(String value) { mouthShape = value; persistSelectedActor(); notifyListeners(); }
   void setEyeDirection({double? x, double? y}) {
     if (x != null) eyeLookX = x.clamp(-1, 1).toDouble();
@@ -689,6 +740,14 @@ class ProjectState extends ChangeNotifier {
     persistSelectedActor();
     notifyListeners();
   }
+  void setFaceControls({double? browLeft,double? browRight,double? eyeOpenLeft,double? eyeOpenRight,double? pupilScale,double? mouthWidth,double? mouthOpen,double? mouthCornerLeft,double? mouthCornerRight,double? jawOpen,double? headTilt}) {
+    if(browLeft!=null)this.browLeft=browLeft.clamp(-1,1).toDouble(); if(browRight!=null)this.browRight=browRight.clamp(-1,1).toDouble();
+    if(eyeOpenLeft!=null)this.eyeOpenLeft=eyeOpenLeft.clamp(0,1.5).toDouble(); if(eyeOpenRight!=null)this.eyeOpenRight=eyeOpenRight.clamp(0,1.5).toDouble();
+    if(pupilScale!=null)this.pupilScale=pupilScale.clamp(.5,1.6).toDouble(); if(mouthWidth!=null)this.mouthWidth=mouthWidth.clamp(.5,1.8).toDouble(); if(mouthOpen!=null)this.mouthOpen=mouthOpen.clamp(0,1).toDouble();
+    if(mouthCornerLeft!=null)this.mouthCornerLeft=mouthCornerLeft.clamp(-1,1).toDouble(); if(mouthCornerRight!=null)this.mouthCornerRight=mouthCornerRight.clamp(-1,1).toDouble(); if(jawOpen!=null)this.jawOpen=jawOpen.clamp(0,1).toDouble(); if(headTilt!=null)this.headTilt=headTilt.clamp(-.7,.7).toDouble();
+    persistSelectedActor(); notifyListeners();
+  }
+  void captureFaceKeyframe() { selectedAnimation.faceTrack.upsert(FacePoseKeyframe(time:playhead,browLeft:browLeft,browRight:browRight,eyeOpenLeft:eyeOpenLeft,eyeOpenRight:eyeOpenRight,pupilX:eyeLookX,pupilY:eyeLookY,mouthWidth:mouthWidth,mouthOpen:mouthOpen,mouthCornerLeft:mouthCornerLeft,mouthCornerRight:mouthCornerRight,jawOpen:jawOpen,headTilt:headTilt)); status='Facial keyframe captured'; persistSelectedActor(); notifyListeners(); }
   void setAppearance({Color? skin, Color? hair, Color? eyes, Color? clothes, String? style, String? eyeShape}) {
     if (skin != null) skinColor = skin;
     if (hair != null) hairColor = hair;
@@ -729,12 +788,20 @@ class ProjectState extends ChangeNotifier {
     set('hair', .28, .0, .44, headSplit * .9);
     set('body', .25, headSplit, .50, legSplit - headSplit);
     set('clothes', .25, headSplit, .50, legSplit - headSplit);
-    set('arm_l', .04, headSplit + .02, .24, (legSplit - headSplit) + .02);
-    set('arm_r', .72, headSplit + .02, .24, (legSplit - headSplit) + .02);
+    final armSpan = (legSplit - headSplit) + .02;
+    final armMid = headSplit + armSpan * .52; // slightly past halfway ~ elbow sits a bit below shoulder height
+    set('arm_l', .04, headSplit + .02, .24, armMid - (headSplit + .02));
+    set('forearm_l', .04, armMid, .24, (headSplit + .02 + armSpan) - armMid);
+    set('arm_r', .72, headSplit + .02, .24, armMid - (headSplit + .02));
+    set('forearm_r', .72, armMid, .24, (headSplit + .02 + armSpan) - armMid);
     set('hand_l', .02, legSplit - .04, .14, .10);
     set('hand_r', .84, legSplit - .04, .14, .10);
-    set('leg_l', .27, legSplit, .22, 1 - legSplit - .08);
-    set('leg_r', .51, legSplit, .22, 1 - legSplit - .08);
+    final legSpan = 1 - legSplit - .08;
+    final legMid = legSplit + legSpan * .55; // knee a bit below thigh midpoint
+    set('leg_l', .27, legSplit, .22, legMid - legSplit);
+    set('shin_l', .27, legMid, .22, (legSplit + legSpan) - legMid);
+    set('leg_r', .51, legSplit, .22, legMid - legSplit);
+    set('shin_r', .51, legMid, .22, (legSplit + legSpan) - legMid);
     set('shoes_l', .27, .90, .22, .10);
     set('shoes_r', .51, .90, .22, .10);
     status = 'Regions guessed from image edges — still nudge each one, this is not full detection';
@@ -911,6 +978,7 @@ class ProjectState extends ChangeNotifier {
     for (final actor in actors) {
       final clip = animations.firstWhere((a) => a.id == actor.animationId, orElse: () => selectedAnimation);
       _applyClipToBones(actor.bones, clip, time);
+      if (clip.faceTrack.keys.isNotEmpty && actor.id == selectedActorId) _applyFaceTrack(clip.faceTrack, time);
       AnimeMotionEngine.applyAnimationLayers(actor.bones, animations, actor.animationLayers, time, _applyClipToBones);
       AnimeMotionEngine.applySecondaryMotion(actor.bones, clip.id, time);
       AnimeMotionEngine.solveIK(actor.bones, actor.ikTargets);
@@ -934,6 +1002,8 @@ class ProjectState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _applyFaceTrack(FaceTrack track,double time){ if(track.keys.isEmpty)return; final local=selectedAnimation.loop&&selectedAnimation.duration>0?time%selectedAnimation.duration:time.clamp(0,selectedAnimation.duration).toDouble(); if(track.keys.length==1){_applyFaceKey(track.keys.first);return;} FacePoseKeyframe a=track.keys.first,b=track.keys.last; for(var i=0;i<track.keys.length-1;i++){if(local>=track.keys[i].time&&local<=track.keys[i+1].time){a=track.keys[i];b=track.keys[i+1];break;}} final span=b.time-a.time; final t=span.abs()<.0001?0:_ease(((local-a.time)/span).clamp(0,1).toDouble(),b.easing); double l(double x,double y)=>x+(y-x)*t; browLeft=l(a.browLeft,b.browLeft);browRight=l(a.browRight,b.browRight);eyeOpenLeft=l(a.eyeOpenLeft,b.eyeOpenLeft);eyeOpenRight=l(a.eyeOpenRight,b.eyeOpenRight);eyeLookX=l(a.pupilX,b.pupilX);eyeLookY=l(a.pupilY,b.pupilY);mouthWidth=l(a.mouthWidth,b.mouthWidth);mouthOpen=l(a.mouthOpen,b.mouthOpen);mouthCornerLeft=l(a.mouthCornerLeft,b.mouthCornerLeft);mouthCornerRight=l(a.mouthCornerRight,b.mouthCornerRight);jawOpen=l(a.jawOpen,b.jawOpen);headTilt=l(a.headTilt,b.headTilt); }
+  void _applyFaceKey(FacePoseKeyframe k){browLeft=k.browLeft;browRight=k.browRight;eyeOpenLeft=k.eyeOpenLeft;eyeOpenRight=k.eyeOpenRight;eyeLookX=k.pupilX;eyeLookY=k.pupilY;mouthWidth=k.mouthWidth;mouthOpen=k.mouthOpen;mouthCornerLeft=k.mouthCornerLeft;mouthCornerRight=k.mouthCornerRight;jawOpen=k.jawOpen;headTilt=k.headTilt;}
   void _apply(Bone b, PoseKeyframe k) { b.x = k.x; b.y = k.y; b.rotation = k.rotation; b.scale = k.scale; }
   double _lerp(double a, double b, double t) => a + (b - a) * t;
   double _lerpAngle(double a, double b, double t) { var d = (b - a + math.pi) % (2 * math.pi) - math.pi; return a + d * t; }

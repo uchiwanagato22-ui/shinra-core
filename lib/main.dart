@@ -792,6 +792,8 @@ KeyframeEasing? _easingAtPlayhead(ProjectState p) {
   return null;
 }
 
+Widget _faceSlider(String label, double value, double min, double max, ValueChanged<double> onChanged) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('$label  ${value.toStringAsFixed(2)}', style: const TextStyle(fontSize: 11)), Slider(value: value.clamp(min,max).toDouble(), min: min, max: max, onChanged: onChanged)]);
+
 class FacePage extends StatelessWidget {
   const FacePage({super.key, required this.p});
   final ProjectState p;
@@ -820,6 +822,21 @@ class FacePage extends StatelessWidget {
                 Slider(value: p.eyeLookY, min: -1, max: 1, divisions: 8, label: p.eyeLookY.toStringAsFixed(1), onChanged: (v) => p.setEyeDirection(y: v)),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: const [Text('Up'), Text('Down')]),
                 Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: () => p.setEyeDirection(x: 0, y: 0), icon: const Icon(Icons.center_focus_strong), label: const Text('Centrer les yeux'))),
+                const Divider(height: 28),
+                const Text('CONTRÔLEURS FACIAUX', style: TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                _faceSlider('Sourcil gauche', p.browLeft, -1, 1, (v) => p.setFaceControls(browLeft: v)),
+                _faceSlider('Sourcil droit', p.browRight, -1, 1, (v) => p.setFaceControls(browRight: v)),
+                _faceSlider('Ouverture œil gauche', p.eyeOpenLeft, 0, 1.5, (v) => p.setFaceControls(eyeOpenLeft: v)),
+                _faceSlider('Ouverture œil droit', p.eyeOpenRight, 0, 1.5, (v) => p.setFaceControls(eyeOpenRight: v)),
+                _faceSlider('Pupilles', p.pupilScale, .5, 1.6, (v) => p.setFaceControls(pupilScale: v)),
+                _faceSlider('Ouverture bouche', p.mouthOpen, 0, 1, (v) => p.setFaceControls(mouthOpen: v)),
+                _faceSlider('Largeur bouche', p.mouthWidth, .5, 1.8, (v) => p.setFaceControls(mouthWidth: v)),
+                _faceSlider('Coin bouche gauche', p.mouthCornerLeft, -1, 1, (v) => p.setFaceControls(mouthCornerLeft: v)),
+                _faceSlider('Coin bouche droit (sourire en coin/diabolique)', p.mouthCornerRight, -1, 1, (v) => p.setFaceControls(mouthCornerRight: v)),
+                _faceSlider('Mâchoire', p.jawOpen, 0, 1, (v) => p.setFaceControls(jawOpen: v)),
+                _faceSlider('Inclinaison tête', p.headTilt, -.7, .7, (v) => p.setFaceControls(headTilt: v)),
+                FilledButton.icon(onPressed: p.captureFaceKeyframe, icon: const Icon(Icons.face_retouching_natural), label: const Text('Image-clé visage')),
                 const Divider(height: 28),
                 const Text('BOUCHE QUI PARLE', style: TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 6),

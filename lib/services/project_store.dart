@@ -19,6 +19,7 @@ class ProjectStore {
       'mouthShape': p.mouthShape,
       'eyeLookX': p.eyeLookX,
       'eyeLookY': p.eyeLookY,
+      'browLeft':p.browLeft,'browRight':p.browRight,'eyeOpenLeft':p.eyeOpenLeft,'eyeOpenRight':p.eyeOpenRight,'pupilScale':p.pupilScale,'mouthWidth':p.mouthWidth,'mouthOpen':p.mouthOpen,'mouthCornerLeft':p.mouthCornerLeft,'mouthCornerRight':p.mouthCornerRight,'jawOpen':p.jawOpen,'headTilt':p.headTilt,'facialRigEnabled':p.facialRigEnabled,
       'skin': p.skinColor.toARGB32(),
       'hair': p.hairColor.toARGB32(),
       'eyes': p.eyeColor.toARGB32(),
@@ -41,6 +42,7 @@ class ProjectStore {
         for (final clip in p.animations)
           {
             'id': clip.id,
+            'faceTrack': [for(final k in clip.faceTrack.keys) [k.time,k.browLeft,k.browRight,k.eyeOpenLeft,k.eyeOpenRight,k.pupilX,k.pupilY,k.mouthWidth,k.mouthOpen,k.mouthCornerLeft,k.mouthCornerRight,k.jawOpen,k.headTilt,k.easing.index]],
             'tracks': {
               for (final entry in clip.tracks.entries)
                 entry.key: [for (final k in entry.value.keys) [k.time, k.x, k.y, k.rotation, k.scale, k.easing.index]],
@@ -67,6 +69,7 @@ class ProjectStore {
     p.mouthShape = (d['mouthShape'] as String?) ?? 'Auto';
     p.eyeLookX = ((d['eyeLookX'] as num?) ?? 0).toDouble().clamp(-1, 1).toDouble();
     p.eyeLookY = ((d['eyeLookY'] as num?) ?? 0).toDouble().clamp(-1, 1).toDouble();
+    p.browLeft=((d['browLeft'] as num?)??0).toDouble();p.browRight=((d['browRight'] as num?)??0).toDouble();p.eyeOpenLeft=((d['eyeOpenLeft'] as num?)??1).toDouble();p.eyeOpenRight=((d['eyeOpenRight'] as num?)??1).toDouble();p.pupilScale=((d['pupilScale'] as num?)??1).toDouble();p.mouthWidth=((d['mouthWidth'] as num?)??1).toDouble();p.mouthOpen=((d['mouthOpen'] as num?)??0).toDouble();p.mouthCornerLeft=((d['mouthCornerLeft'] as num?)??0).toDouble();p.mouthCornerRight=((d['mouthCornerRight'] as num?)??0).toDouble();p.jawOpen=((d['jawOpen'] as num?)??0).toDouble();p.headTilt=((d['headTilt'] as num?)??0).toDouble();p.facialRigEnabled=(d['facialRigEnabled'] as bool?)??true;
     if (d['skin'] != null) p.skinColor = Color(d['skin'] as int);
     if (d['hair'] != null) p.hairColor = Color(d['hair'] as int);
     if (d['eyes'] != null) p.eyeColor = Color(d['eyes'] as int);
@@ -101,6 +104,9 @@ class ProjectStore {
       final m = Map<String, dynamic>.from(item);
       final clip = p.animations.where((c) => c.id == m['id']).firstOrNull;
       if (clip == null) continue;
+      clip.faceTrack.keys.clear();
+      for(final raw in (m['faceTrack'] as List? ?? const [])){final k=(raw as List).cast<num>();if(k.length>=13){final ei=k.length>13?k[13].toInt():KeyframeEasing.smooth.index;final e=ei>=0&&ei<KeyframeEasing.values.length?KeyframeEasing.values[ei]:KeyframeEasing.smooth;clip.faceTrack.keys.add(FacePoseKeyframe(time:k[0].toDouble(),browLeft:k[1].toDouble(),browRight:k[2].toDouble(),eyeOpenLeft:k[3].toDouble(),eyeOpenRight:k[4].toDouble(),pupilX:k[5].toDouble(),pupilY:k[6].toDouble(),mouthWidth:k[7].toDouble(),mouthOpen:k[8].toDouble(),mouthCornerLeft:k[9].toDouble(),mouthCornerRight:k[10].toDouble(),jawOpen:k[11].toDouble(),headTilt:k[12].toDouble(),easing:e));}}
+      clip.faceTrack.keys.sort((a,b)=>a.time.compareTo(b.time));
       final tracks = Map<String, dynamic>.from(m['tracks'] as Map? ?? const {});
       for (final entry in tracks.entries) {
         final track = clip.track(entry.key);
