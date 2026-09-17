@@ -1,5 +1,6 @@
 ﻿import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../models/rig.dart';
@@ -168,12 +169,71 @@ class _ImagePartsPainter extends CustomPainter {
       final src = Rect.fromLTWH(crop.left * iw, crop.top * ih, crop.width * iw, crop.height * ih);
       final destW = src.width * .6 * partScale;
       final destH = src.height * .6 * partScale;
-      canvas.save();
-      canvas.translate(w.dx, w.dy);
-      canvas.rotate(w.rotation);
-      final dest = Rect.fromCenter(center: Offset.zero, width: destW * w.scale, height: destH * w.scale);
-      canvas.drawImageRect(image, src, dest, paint);
-      canvas.restore();
+
+      // If this piece's bone has a child bone that's *also* a mapped part
+      // (e.g. arm_l → forearm_l), the bottom edge is warped toward the
+      // child's transform instead of staying rigidly attached to the
+      // parent — a real bend at the joint (2-bone weighted mesh) instead of
+      // two flat rectangles hinging apart with a gap at the elbow/knee.
+      String? childId;
+      for (final part in p.parts) {
+        if (part.crop == null || !part.visible) continue;
+        final b = bones[part.boneId];
+        if (b != null && b.parentId == boneId) { childId = part.boneId; break; }
+      }
+      final child = childId == null ? null : bones[childId];
+      if (child == null) {
+        canvas.save();
+        canvas.translate(w.dx, w.dy);
+        canvas.rotate(w.rotation);
+        final dest = Rect.fromCenter(center: Offset.zero, width: destW * w.scale, height: destH * w.scale);
+        canvas.drawImageRect(image, src, dest, paint);
+        canvas.restore();
+        return;
+      }
+      final cw = _worldTransform(child, bones);
+      // Which local edge (top or bottom) is actually nearest the joint
+      // varies with how autoMapImageParts cropped this part, so measure it
+      // instead of assuming — get this backwards and the mesh twists into a
+      // bowtie instead of bending cleanly.
+      Offset ownOnly(double ly) {
+        final cos = math.cos(w.rotation), sin = math.sin(w.rotation);
+        final sy = ly * w.scale;
+        return Offset(w.dx - sy * sin, w.dy + sy * cos);
+      }
+      final topDist = (ownOnly(-destH / 2) - Offset(cw.dx, cw.dy)).distanceSquared;
+      final bottomDist = (ownOnly(destH / 2) - Offset(cw.dx, cw.dy)).distanceSquared;
+      final bottomIsNearJoint = bottomDist <= topDist;
+      const rows = 7, cols = 2;
+      final positions = <Offset>[];
+      final uvs = <Offset>[];
+      for (var r = 0; r < rows; r++) {
+        final t = r / (rows - 1);
+        final bendT = bottomIsNearJoint ? t : (1 - t);
+        final bend = bendT * bendT * (3 - 2 * bendT); // smoothstep — soft hinge, no crease at the seam
+        for (var c = 0; c < cols; c++) {
+          final lx = (c == 0 ? -destW / 2 : destW / 2);
+          final ly = -destH / 2 + t * destH;
+          Offset xform(_World tr) {
+            final cos = math.cos(tr.rotation), sin = math.sin(tr.rotation);
+            final sx = lx * tr.scale, sy = ly * tr.scale;
+            return Offset(tr.dx + sx * cos - sy * sin, tr.dy + sx * sin + sy * cos);
+          }
+          final pOwn = xform(w);
+          final pChild = xform(cw);
+          positions.add(Offset(pOwn.dx + (pChild.dx - pOwn.dx) * bend, pOwn.dy + (pChild.dy - pOwn.dy) * bend));
+          uvs.add(Offset(src.left + (c == 0 ? 0 : src.width), src.top + t * src.height));
+        }
+      }
+      final indices = <int>[];
+      for (var r = 0; r < rows - 1; r++) {
+        final a = r * cols, b0 = a + 1, c0 = a + cols, d = c0 + 1;
+        indices.addAll([a, b0, c0, b0, d, c0]);
+      }
+      final shaderPaint = Paint()
+        ..shader = ui.ImageShader(image, ui.TileMode.clamp, ui.TileMode.clamp, Float64List.fromList([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]))
+        ..filterQuality = FilterQuality.medium;
+      canvas.drawVertices(ui.Vertices(ui.VertexMode.triangles, positions, textureCoordinates: uvs, indices: indices), BlendMode.srcOver, shaderPaint);
     }
 
     if (p.hasAnyPartCrop) {
