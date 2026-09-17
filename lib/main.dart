@@ -621,7 +621,7 @@ class _CharacterPageState extends State<CharacterPage> {
                   const Divider(height: 28),
                   const Text('IMAGE → LIAISON DES PARTIES', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
                   const SizedBox(height: 4),
-                  Text('Draw a region for each part so it moves on its own bone instead of the whole image moving as one block.', style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: .5))),
+                  Text('Fonctionne mieux avec une image CORPS ENTIER (bras et jambes visibles). Pour un portrait/gros plan, ne clique pas sur l\'auto-détection — mappe juste "Face" manuellement, le reste du corps restera dessiné normalement.', style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: .5))),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
                     onPressed: autoMapping ? null : () async {
@@ -680,6 +680,8 @@ class _RigPageState extends State<RigPage> {
               ChoiceChip(label: const Text('Tourner'), selected: p.poseTool == 'rotate', onSelected: (_) => p.setPoseTool('rotate')),
               const SizedBox(width: 6),
               ChoiceChip(label: const Text('Échelle'), selected: p.poseTool == 'scale', onSelected: (_) => p.setPoseTool('scale')),
+              const SizedBox(width: 6),
+              ChoiceChip(label: const Text('IK (glisser la cible)'), selected: p.poseTool == 'ik', onSelected: (_) => p.setPoseTool('ik')),
             ],
           ]),
           const SizedBox(height: 8),
@@ -704,6 +706,26 @@ class _RigPageState extends State<RigPage> {
           const Divider(),
           const Text('LIAISON DES PARTIES', style: TextStyle(fontWeight: FontWeight.w800)),
           for (final part in p.parts) DropdownButtonFormField<String>(key: ValueKey(part.id), initialValue: part.boneId, decoration: InputDecoration(labelText: part.name), items: [for (final b in p.bones) DropdownMenuItem(value: b.id, child: Text(b.name))], onChanged: (v) { if (v != null) p.bindPart(part.id, v); }),
+          const Divider(),
+          const Text('IK — bouger la main/pied fait plier le coude/genou automatiquement', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+          const SizedBox(height: 6),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final e in const [('hand_l', 'Main G'), ('hand_r', 'Main D'), ('foot_l', 'Pied G'), ('foot_r', 'Pied D')])
+              OutlinedButton(onPressed: () => p.addIKTarget(e.$1), child: Text('+ ${e.$2}')),
+          ]),
+          for (final t in p.ikTargets)
+            ListTile(
+              dense: true,
+              selected: t.id == p.selectedIKTargetId,
+              leading: Icon(Icons.gps_fixed, size: 16, color: t.enabled ? const Color(0xFFE0507A) : Colors.grey),
+              title: Text(p.bones.where((b) => b.id == t.endBoneId).firstOrNull?.name ?? t.endBoneId),
+              onTap: () => p.selectIKTarget(t.id),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                Switch(value: t.enabled, onChanged: (v) { p.selectIKTarget(t.id); p.setIKTarget(enabled: v); }),
+                IconButton(icon: const Icon(Icons.delete_outline, size: 18), onPressed: () => p.removeIKTarget(t.id)),
+              ]),
+            ),
+          if (p.selectedIKTarget != null) _faceSlider('Force IK', p.selectedIKTarget!.weight, 0, 1, (v) => p.setIKTarget(weight: v)),
         ]))),
       ])),
     ]);

@@ -43,6 +43,7 @@ class ShinraViewport extends StatelessWidget {
       );
 
   void _dragBone(ProjectState p, Offset screenDelta) {
+    if (p.poseTool == 'ik') { p.moveSelectedIKTargetByScreenDelta(screenDelta); return; }
     final bone = p.selectedBone;
     if (p.poseTool == 'rotate') {
       p.setBone(rotation: bone.rotation + screenDelta.dx * .012);
@@ -220,17 +221,25 @@ class _CharacterPainter extends CustomPainter {
     canvas.scale(p.camera.zoom);
     canvas.rotate(p.camera.rotation);
     for (final actor in p.actors) {
-      final skipBody = actor.id == p.selectedActorId && actor.useImageAsBody && actor.importedImagePath.isNotEmpty;
+      // Per-piece fallback: only the bones that actually have an image crop
+      // mapped get replaced by the imported artwork — everything else still
+      // draws the procedural body. Old behaviour hid the *entire* body the
+      // moment any image was attached, so someone who only mapped a face
+      // crop from a portrait ended up with a floating head and no limbs at
+      // all instead of a posable body wearing their face.
+      final imagedBoneIds = (actor.id == p.selectedActorId && actor.useImageAsBody && actor.importedImagePath.isNotEmpty)
+          ? {for (final part in p.parts) if (part.crop != null) part.boneId}
+          : const <String>{};
       canvas.save();
       canvas.translate(actor.offsetX, actor.offsetY);
       canvas.scale(actor.facing, 1);
-      _paintActor(canvas, p, actor, showBones && actor.id == p.selectedActorId, skipBody);
+      _paintActor(canvas, p, actor, showBones && actor.id == p.selectedActorId, imagedBoneIds);
       canvas.restore();
     }
     canvas.restore();
   }
 
-  void _paintActor(Canvas canvas, ProjectState p, SceneActor actor, bool showActorBones, bool skipBody) {
+  void _paintActor(Canvas canvas, ProjectState p, SceneActor actor, bool showActorBones, Set<String> imagedBoneIds) {
     final bones = {for (final b in actor.bones) b.id: b};
     Offset point(Bone b) {
       var x = b.x, y = b.y;
@@ -260,7 +269,9 @@ class _CharacterPainter extends CustomPainter {
     final root = bones['root']!;
     final torso = point(bones['torso']!);
     final head = point(bones['head']!);
-    if (!skipBody) {
+    final headImaged = imagedBoneIds.contains('head');
+    final torsoImaged = imagedBoneIds.contains('torso');
+    if (!headImaged || !torsoImaged) {
       // Signature move: the body squashes/stretches automatically around an
       // Impact FX on this actor — classic squash & stretch, but nobody has
       // to hand-key it. Anticipation stretch just before, hard squash at the
@@ -271,27 +282,39 @@ class _CharacterPainter extends CustomPainter {
       canvas.translate(torso.dx, torso.dy);
       canvas.scale(squash.sx, squash.sy);
       canvas.translate(-torso.dx, -torso.dy);
-      _drawOutfit(canvas, torso, head, actor.outfitStyle, actor.clothesColor);
-      canvas.drawOval(Rect.fromCenter(center: head, width: 88, height: 98), Paint()..color = actor.skinColor);
-      _drawHair(canvas, head, actor.hairStyle, actor.hairColor);
-      final dlg = p.activeDialogueFor(actor.id);
-      _drawFace(canvas, head, actor, actor.expression, p.playhead, dlg);
-      if (dlg != null) _drawSpeechBubble(canvas, head, dlg.text);
+      if (!torsoImaged) _drawOutfit(canvas, torso, head, actor.outfitStyle, actor.clothesColor);
+      DialogueCue? dlg;
+      if (!headImaged) {
+        canvas.drawOval(Rect.fromCenter(center: head, width: 88, height: 98), Paint()..color = actor.skinColor);
+        _drawHair(canvas, head, actor.hairStyle, actor.hairColor);
+        dlg = p.activeDialogueFor(actor.id);
+        _drawFace(canvas, head, actor, actor.expression, p.playhead, dlg);
+        if (dlg != null) _drawSpeechBubble(canvas, head, dlg.text);
+      }
       final armLEnd = point(bones['arm_l']!) + Offset(math.sin(bones['arm_l']!.rotation + _worldRotation(bones['arm_l']!, bones)) * bones['arm_l']!.length * bones['arm_l']!.scale, -math.cos(bones['arm_l']!.rotation + _worldRotation(bones['arm_l']!, bones)) * bones['arm_l']!.length * bones['arm_l']!.scale);
       final armREnd = point(bones['arm_r']!) + Offset(math.sin(bones['arm_r']!.rotation + _worldRotation(bones['arm_r']!, bones)) * bones['arm_r']!.length * bones['arm_r']!.scale, -math.cos(bones['arm_r']!.rotation + _worldRotation(bones['arm_r']!, bones)) * bones['arm_r']!.length * bones['arm_r']!.scale);
-      _drawAccessories(canvas, head, torso, armLEnd, armREnd, actor);
+      if (!torsoImaged) _drawAccessories(canvas, head, torso, armLEnd, armREnd, actor);
       final limbColor = Color.lerp(actor.skinColor, Colors.black, .25)!;
-      limb(bones['arm_l']!, 24, limbColor);
-      limb(bones['arm_r']!, 24, limbColor);
+      // One image-cropped piece no longer blanks the whole limb: an arm
+      // whose upper segment is mapped to the photo but whose forearm isn't
+      // still gets its forearm/hand drawn procedurally instead of leaving a
+      // gap, and vice versa.
+      void limbUnlessImaged(String boneId, double width, Color color) { if (!imagedBoneIds.contains(boneId)) limb(bones[boneId]!, width, color); }
+      limbUnlessImaged('arm_l', 24, limbColor);
+      limbUnlessImaged('forearm_l', 20, limbColor);
+      limbUnlessImaged('arm_r', 24, limbColor);
+      limbUnlessImaged('forearm_r', 20, limbColor);
       // Hands and feet are separate rig parts, not decoration. Drawing them
       // from their own bones makes punches, pointing and planted steps read
       // clearly when the animator keys hand_l/hand_r/foot_l/foot_r.
-      limb(bones['hand_l']!, 16, limbColor);
-      limb(bones['hand_r']!, 16, limbColor);
-      limb(bones['leg_l']!, 30, actor.clothesColor);
-      limb(bones['leg_r']!, 30, actor.clothesColor);
-      limb(bones['foot_l']!, 24, Color.lerp(actor.clothesColor, Colors.black, .35)!);
-      limb(bones['foot_r']!, 24, Color.lerp(actor.clothesColor, Colors.black, .35)!);
+      limbUnlessImaged('hand_l', 16, limbColor);
+      limbUnlessImaged('hand_r', 16, limbColor);
+      limbUnlessImaged('leg_l', 30, actor.clothesColor);
+      limbUnlessImaged('shin_l', 26, actor.clothesColor);
+      limbUnlessImaged('leg_r', 30, actor.clothesColor);
+      limbUnlessImaged('shin_r', 26, actor.clothesColor);
+      limbUnlessImaged('foot_l', 24, Color.lerp(actor.clothesColor, Colors.black, .35)!);
+      limbUnlessImaged('foot_r', 24, Color.lerp(actor.clothesColor, Colors.black, .35)!);
       canvas.restore();
     }
 
@@ -305,6 +328,21 @@ class _CharacterPainter extends CustomPainter {
         if (b.parentId != null) canvas.drawLine(point(bones[b.parentId]!), a, paint);
       }
       canvas.drawCircle(point(root), 9, Paint()..style = PaintingStyle.stroke..strokeWidth = 2..color = const Color(0xFFD4A73B));
+      // IK target handles — diamonds so they read as "draggable goal" at a
+      // glance, distinct from the round bone joints.
+      for (final t in p.ikTargets) {
+        final selected = t.id == p.selectedIKTargetId;
+        final tp = Offset(t.x, t.y);
+        final size = selected ? 10.0 : 7.0;
+        final path = Path()
+          ..moveTo(tp.dx, tp.dy - size)
+          ..lineTo(tp.dx + size, tp.dy)
+          ..lineTo(tp.dx, tp.dy + size)
+          ..lineTo(tp.dx - size, tp.dy)
+          ..close();
+        canvas.drawPath(path, Paint()..color = (t.enabled ? const Color(0xFFE0507A) : const Color(0xFF6B6B78)).withValues(alpha: selected ? 1 : .75));
+        canvas.drawPath(path, Paint()..style = PaintingStyle.stroke..strokeWidth = selected ? 2.5 : 1.5..color = Colors.white.withValues(alpha: .85));
+      }
     }
     _drawFx(canvas, torso, head, p);
   }

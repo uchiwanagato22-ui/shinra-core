@@ -38,6 +38,7 @@ class ProjectStore {
       'camera': [p.camera.x, p.camera.y, p.camera.zoom, p.camera.rotation],
       'parts': [for (final x in p.parts) {'id': x.id, 'bone': x.boneId, 'visible': x.visible, 'crop': x.crop == null ? null : [x.crop!.left, x.crop!.top, x.crop!.width, x.crop!.height]}],
       'bones': [for (final b in p.bones) {'id': b.id, 'x': b.x, 'y': b.y, 'r': b.rotation, 's': b.scale}],
+      'ikTargets': [for (final t in p.ikTargets) {'id': t.id, 'end': t.endBoneId, 'x': t.x, 'y': t.y, 'enabled': t.enabled, 'weight': t.weight}],
       'animations': [
         for (final clip in p.animations)
           {
@@ -91,6 +92,19 @@ class ProjectStore {
       final b = p.bones.where((x) => x.id == m['id']).firstOrNull;
       if (b != null) { b.x = (m['x'] as num).toDouble(); b.y = (m['y'] as num).toDouble(); b.rotation = (m['r'] as num).toDouble(); b.scale = (m['s'] as num).toDouble(); }
     }
+    p.ikTargets
+      ..clear()
+      ..addAll([
+        for (final item in (d['ikTargets'] as List? ?? const []))
+          IKTarget(
+            id: (item as Map)['id'] as String,
+            endBoneId: item['end'] as String,
+            x: (item['x'] as num).toDouble(),
+            y: (item['y'] as num).toDouble(),
+            enabled: (item['enabled'] as bool?) ?? true,
+            weight: ((item['weight'] as num?) ?? 1).toDouble(),
+          ),
+      ]);
     for (final item in (d['parts'] as List? ?? const [])) {
       final m = Map<String, dynamic>.from(item);
       final part = p.parts.where((x) => x.id == m['id']).firstOrNull;

@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show ChangeNotifier;
-import 'package:flutter/material.dart' show Color, Rect;
+import 'package:flutter/material.dart' show Color, Rect, Offset;
 import '../services/image_segmentation.dart';
 import '../services/animation_import.dart';
 import '../services/anime_motion_engine.dart';
@@ -716,6 +716,78 @@ class ProjectState extends ChangeNotifier {
       id = b.parentId;
     }
     return r;
+  }
+  /// World-space (rig-local, pre-camera/pre-actor-offset) position of a
+  /// bone's own joint — same coordinate space bone.x/y and IKTarget.x/y
+  /// live in. Used to drop a new IK target exactly on the hand/foot it
+  /// targets instead of at some arbitrary point the user then has to hunt
+  /// for.
+  ({double x, double y}) worldPositionOf(String boneId) {
+    final byId = {for (final b in bones) b.id: b};
+    final start = byId[boneId];
+    if (start == null) return (x: 0, y: 0);
+    var x = start.x, y = start.y;
+    var parentId = start.parentId;
+    var guard = 0;
+    while (parentId != null && guard++ < 20) {
+      final par = byId[parentId];
+      if (par == null) break;
+      final cos = math.cos(par.rotation), sin = math.sin(par.rotation);
+      final nx = par.x + x * cos - y * sin;
+      final ny = par.y + x * sin + y * cos;
+      x = nx; y = ny;
+      parentId = par.parentId;
+    }
+    return (x: x, y: y);
+  }
+
+  /// One IK target per end bone (hand/foot) at a time — adding a second
+  /// one for the same bone would just fight the first for control every
+  /// frame, so this replaces rather than stacks.
+  String? selectedIKTargetId;
+  void addIKTarget(String endBoneId) {
+    final bone = bones.where((b) => b.id == endBoneId).firstOrNull;
+    if (bone == null || bone.parentId == null) { status = 'Cet os n\'a pas de parent — IK impossible'; notifyListeners(); return; }
+    final mid = bones.where((b) => b.id == bone.parentId).firstOrNull;
+    if (mid == null || mid.parentId == null) { status = 'Il faut 2 os au-dessus (ex: main → avant-bras → bras) pour une cible IK'; notifyListeners(); return; }
+    ikTargets.removeWhere((t) => t.endBoneId == endBoneId);
+    final pos = worldPositionOf(endBoneId);
+    final id = 'ik_${DateTime.now().microsecondsSinceEpoch}';
+    ikTargets.add(IKTarget(id: id, endBoneId: endBoneId, x: pos.x, y: pos.y));
+    selectedIKTargetId = id;
+    status = 'Cible IK ajoutée sur ${bone.name} — glisse-la dans la vue';
+    persistSelectedActor();
+    notifyListeners();
+  }
+  void removeIKTarget(String id) {
+    ikTargets.removeWhere((t) => t.id == id);
+    if (selectedIKTargetId == id) selectedIKTargetId = null;
+    status = 'Cible IK supprimée';
+    persistSelectedActor();
+    notifyListeners();
+  }
+  void selectIKTarget(String? id) { selectedIKTargetId = id; notifyListeners(); }
+  IKTarget? get selectedIKTarget => selectedIKTargetId == null ? null : ikTargets.where((t) => t.id == selectedIKTargetId).firstOrNull;
+  void setIKTarget({double? x, double? y, bool? enabled, double? weight}) {
+    final t = selectedIKTarget;
+    if (t == null) return;
+    if (x != null) t.x = x; if (y != null) t.y = y;
+    if (enabled != null) t.enabled = enabled;
+    if (weight != null) t.weight = weight.clamp(0, 1).toDouble();
+    persistSelectedActor();
+    notifyListeners();
+  }
+  /// screenDelta is raw pointer movement in screen px — same convention as
+  /// _dragBone in viewport.dart. IK target coordinates live in flat
+  /// rig-local space (no bone rotation to undo), so only the camera zoom
+  /// needs correcting for, unlike a bone-local drag.
+  void moveSelectedIKTargetByScreenDelta(Offset screenDelta) {
+    final t = selectedIKTarget;
+    if (t == null) return;
+    t.x += screenDelta.dx / camera.zoom;
+    t.y += screenDelta.dy / camera.zoom;
+    persistSelectedActor();
+    notifyListeners();
   }
   void setTool(String value) { tool = value; notifyListeners(); }
   void setExpression(String value) {

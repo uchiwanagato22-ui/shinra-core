@@ -1,6 +1,6 @@
 name: shinra_core
 publish_to: 'none'
-version: 1.0.0+36
+version: 1.0.0+37
 environment:
   sdk: '>=3.3.0 <4.0.0'
 dependencies:
@@ -12,7 +12,7 @@ dependencies:
   path_provider: ^2.1.5
   provider: ^6.1.5+1
   image: ^4.2.0
-  audioplayers: ^6.7.1
+  audioplayers: ^6.1.0
   ffmpeg_kit_flutter_new: ^4.6.0
   google_fonts: ^6.2.1
 dev_dependencies:
