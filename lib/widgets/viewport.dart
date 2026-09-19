@@ -1,9 +1,9 @@
 ﻿import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../models/rig.dart';
+import '../models/frame_animation.dart';
 
 class ShinraViewport extends StatelessWidget {
   const ShinraViewport({super.key, required this.project, this.showBones = true, this.poseMode = false});
@@ -29,19 +29,52 @@ class ShinraViewport extends StatelessWidget {
               height: math.max(420, c.maxHeight - 30),
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
+                // Click near a joint to grab it directly, the way any real
+                // pose tool works — before this the only way to change
+                // which bone you're posing was scrolling the bone list in
+                // the sidebar, which nobody expects to have to do.
+                onPanStart: poseMode ? (d) => _selectNearestBone(project, d.localPosition, Size(math.max(360, c.maxWidth - 30), math.max(420, c.maxHeight - 30))) : null,
                 onPanUpdate: poseMode ? (d) => _dragBone(project, d.delta) : null,
                 child: Stack(children: [
                   if (project.background == 'Custom' && project.sceneBackgroundImagePath.isNotEmpty)
                     Positioned.fill(child: Image.file(File(project.sceneBackgroundImagePath), fit: BoxFit.cover)),
-                  CustomPaint(painter: _CharacterPainter(project, showBones), size: Size.infinite),
-                  if (project.useImageAsBody && project.importedImagePath.isNotEmpty)
-                    _ImageBody(project: project),
+                  if (project.frameEditorEnabled)
+                    // Explicit switch, not a silent fallback: hand-drawn
+                    // exposures replace the rig entirely when this is on,
+                    // so posing never has an invisible effect on either side.
+                    CustomPaint(painter: _FrameAnimationPainter(project), size: Size.infinite)
+                  else ...[
+                    CustomPaint(painter: _CharacterPainter(project, showBones), size: Size.infinite),
+                    if (project.selectedActor.useImageAsBody && project.selectedActor.importedImagePath.isNotEmpty)
+                      _ImageBody(project: project, actor: project.selectedActor),
+                  ],
                 ]),
               ),
             ),
           ),
         ),
       );
+
+  void _selectNearestBone(ProjectState p, Offset screenPos, Size size) {
+    final center = Offset(size.width / 2 + p.camera.x, size.height / 2 + p.camera.y);
+    var d = (screenPos - center) / p.camera.zoom;
+    final cr = math.cos(-p.camera.rotation), sr = math.sin(-p.camera.rotation);
+    d = Offset(d.dx * cr - d.dy * sr, d.dx * sr + d.dy * cr);
+    final actor = p.selectedActor;
+    d -= Offset(actor.offsetX, actor.offsetY);
+    if (actor.facing < 0) d = Offset(-d.dx, d.dy);
+    final bones = {for (final b in p.bones) b.id: b};
+    String? best;
+    var bestDist = double.infinity;
+    for (final b in p.bones) {
+      final w = _worldTransform(b, bones);
+      final dist = (Offset(w.dx, w.dy) - d).distanceSquared;
+      if (dist < bestDist) { bestDist = dist; best = b.id; }
+    }
+    const grabScreenPx = 32.0; // constant screen-space grab radius regardless of zoom level
+    final thresholdRig = grabScreenPx / p.camera.zoom;
+    if (best != null && bestDist <= thresholdRig * thresholdRig) p.selectBone(best);
+  }
 
   void _dragBone(ProjectState p, Offset screenDelta) {
     if (p.poseTool == 'ik') { p.moveSelectedIKTargetByScreenDelta(screenDelta); return; }
@@ -94,8 +127,9 @@ class _World {
 /// move independently. Otherwise the whole image follows the torso as one
 /// rigid block (basic fallback for a not-yet-segmented upload).
 class _ImageBody extends StatefulWidget {
-  const _ImageBody({required this.project});
+  const _ImageBody({required this.project, required this.actor});
   final ProjectState project;
+  final SceneActor actor;
   @override
   State<_ImageBody> createState() => _ImageBodyState();
 }
@@ -103,6 +137,8 @@ class _ImageBody extends StatefulWidget {
 class _ImageBodyState extends State<_ImageBody> {
   ui.Image? _image;
   String? _loadedPath;
+  final Map<String, ui.Image> _cutouts = {};
+  String _cutoutSignature = '';
 
   @override
   void initState() {
@@ -114,30 +150,52 @@ class _ImageBodyState extends State<_ImageBody> {
   void didUpdateWidget(covariant _ImageBody old) {
     super.didUpdateWidget(old);
     _maybeLoad();
+    _loadCutouts();
   }
 
   Future<void> _maybeLoad() async {
-    final path = widget.project.importedImagePath;
+    final path = widget.actor.importedImagePath;
     if (path.isEmpty || path == _loadedPath) return;
     _loadedPath = path;
     final bytes = await File(path).readAsBytes();
     final codec = await ui.instantiateImageCodec(bytes);
     final frame = await codec.getNextFrame();
     if (mounted) setState(() => _image = frame.image);
+    await _loadCutouts();
+  }
+
+  Future<void> _loadCutouts() async {
+    final signature = widget.actor.parts.map((p) => '${p.id}:${p.imagePath}').join('|');
+    if (signature == _cutoutSignature) return;
+    _cutoutSignature = signature;
+    final loaded = <String, ui.Image>{};
+    for (final part in widget.actor.parts) {
+      if (part.imagePath.isEmpty) continue;
+      try {
+        final bytes = await File(part.imagePath).readAsBytes();
+        final codec = await ui.instantiateImageCodec(bytes);
+        final frame = await codec.getNextFrame();
+        loaded[part.id] = frame.image;
+      } catch (_) {}
+    }
+    if (mounted) setState(() { _cutouts..clear()..addAll(loaded); });
   }
 
   @override
   Widget build(BuildContext context) {
     final img = _image;
     if (img == null) return const SizedBox.shrink();
-    return CustomPaint(painter: _ImagePartsPainter(widget.project, img), size: Size.infinite);
+    _loadCutouts();
+    return CustomPaint(painter: _ImagePartsPainter(widget.project, widget.actor, img, _cutouts), size: Size.infinite);
   }
 }
 
 class _ImagePartsPainter extends CustomPainter {
-  _ImagePartsPainter(this.p, this.image);
+  _ImagePartsPainter(this.p, this.actor, this.image, this.cutouts);
   final ProjectState p;
+  final SceneActor actor;
   final ui.Image image;
+  final Map<String, ui.Image> cutouts;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -162,11 +220,17 @@ class _ImagePartsPainter extends CustomPainter {
       canvas.translate(-tw.dx, -tw.dy);
     }
 
-    void drawPiece(Rect crop, String boneId, double partScale) {
+    double partOffsetX(CharacterPart part) => part.x + part.imageOffsetX;
+    double partOffsetY(CharacterPart part) => part.y + part.imageOffsetY;
+
+    void drawPiece(String partId, Rect crop, String boneId, double partScale) {
+      final part = actor.parts.firstWhere((x) => x.id == partId);
       final bone = bones[boneId];
       if (bone == null) return;
       final w = _worldTransform(bone, bones);
-      final src = Rect.fromLTWH(crop.left * iw, crop.top * ih, crop.width * iw, crop.height * ih);
+      final cutout = cutouts[partId];
+      final sourceImage = cutout ?? image;
+      final src = cutout == null ? Rect.fromLTWH(crop.left * iw, crop.top * ih, crop.width * iw, crop.height * ih) : Rect.fromLTWH(0, 0, cutout.width.toDouble(), cutout.height.toDouble());
       final destW = src.width * .6 * partScale;
       final destH = src.height * .6 * partScale;
 
@@ -176,7 +240,7 @@ class _ImagePartsPainter extends CustomPainter {
       // parent — a real bend at the joint (2-bone weighted mesh) instead of
       // two flat rectangles hinging apart with a gap at the elbow/knee.
       String? childId;
-      for (final part in p.parts) {
+      for (final part in actor.parts) {
         if (part.crop == null || !part.visible) continue;
         final b = bones[part.boneId];
         if (b != null && b.parentId == boneId) { childId = part.boneId; break; }
@@ -184,18 +248,18 @@ class _ImagePartsPainter extends CustomPainter {
       final child = childId == null ? null : bones[childId];
       if (child == null) {
         canvas.save();
-        canvas.translate(w.dx, w.dy);
+        canvas.translate(w.dx + partOffsetX(part), w.dy + partOffsetY(part));
         canvas.rotate(w.rotation);
         final dest = Rect.fromCenter(center: Offset.zero, width: destW * w.scale, height: destH * w.scale);
-        canvas.drawImageRect(image, src, dest, paint);
+        canvas.drawImageRect(sourceImage, src, dest, paint);
         canvas.restore();
         return;
       }
       final cw = _worldTransform(child, bones);
       // Which local edge (top or bottom) is actually nearest the joint
       // varies with how autoMapImageParts cropped this part, so measure it
-      // instead of assuming — get this backwards and the mesh twists into a
-      // bowtie instead of bending cleanly.
+      // instead of assuming — get this backwards and the strips fan the
+      // wrong way instead of bending cleanly toward the elbow/knee.
       Offset ownOnly(double ly) {
         final cos = math.cos(w.rotation), sin = math.sin(w.rotation);
         final sy = ly * w.scale;
@@ -204,42 +268,45 @@ class _ImagePartsPainter extends CustomPainter {
       final topDist = (ownOnly(-destH / 2) - Offset(cw.dx, cw.dy)).distanceSquared;
       final bottomDist = (ownOnly(destH / 2) - Offset(cw.dx, cw.dy)).distanceSquared;
       final bottomIsNearJoint = bottomDist <= topDist;
-      const rows = 7, cols = 2;
-      final positions = <Offset>[];
-      final uvs = <Offset>[];
-      for (var r = 0; r < rows; r++) {
-        final t = r / (rows - 1);
-        final bendT = bottomIsNearJoint ? t : (1 - t);
+      // Deliberately NOT canvas.drawVertices + ImageShader here — that API
+      // has a real history of broken/garbled rendering on Impeller
+      // (Flutter's default renderer on iOS/Android), documented in
+      // multiple Flutter engine bug reports. A fan of thin rigid strips,
+      // each drawn with the same plain drawImageRect used everywhere else
+      // in this file, gets a near-identical soft bend with zero exposure
+      // to that risk — slower to draw, but it will actually render the
+      // same on every device instead of possibly not rendering at all.
+      const strips = 10;
+      for (var i = 0; i < strips; i++) {
+        final t0 = i / strips, t1 = (i + 1) / strips;
+        final tMid = (t0 + t1) / 2;
+        final bendT = bottomIsNearJoint ? tMid : (1 - tMid);
         final bend = bendT * bendT * (3 - 2 * bendT); // smoothstep — soft hinge, no crease at the seam
-        for (var c = 0; c < cols; c++) {
-          final lx = (c == 0 ? -destW / 2 : destW / 2);
-          final ly = -destH / 2 + t * destH;
-          Offset xform(_World tr) {
-            final cos = math.cos(tr.rotation), sin = math.sin(tr.rotation);
-            final sx = lx * tr.scale, sy = ly * tr.scale;
-            return Offset(tr.dx + sx * cos - sy * sin, tr.dy + sx * sin + sy * cos);
-          }
-          final pOwn = xform(w);
-          final pChild = xform(cw);
-          positions.add(Offset(pOwn.dx + (pChild.dx - pOwn.dx) * bend, pOwn.dy + (pChild.dy - pOwn.dy) * bend));
-          uvs.add(Offset(src.left + (c == 0 ? 0 : src.width), src.top + t * src.height));
-        }
+        final ly = -destH / 2 + tMid * destH;
+        final cos = math.cos(w.rotation), sin = math.sin(w.rotation);
+        final ownCenter = Offset(w.dx + (-sin * ly * w.scale), w.dy + (cos * ly * w.scale));
+        final childCos = math.cos(cw.rotation), childSin = math.sin(cw.rotation);
+        final childCenter = Offset(cw.dx + (-childSin * ly * cw.scale), cw.dy + (childCos * ly * cw.scale));
+        final stripCenter = Offset(ownCenter.dx + (childCenter.dx - ownCenter.dx) * bend, ownCenter.dy + (childCenter.dy - ownCenter.dy) * bend);
+        var angleDiff = cw.rotation - w.rotation;
+        while (angleDiff > math.pi) angleDiff -= 2 * math.pi;
+        while (angleDiff < -math.pi) angleDiff += 2 * math.pi;
+        final stripRotation = w.rotation + angleDiff * bend;
+        final stripScale = w.scale + (cw.scale - w.scale) * bend;
+        final srcStrip = Rect.fromLTWH(src.left, src.top + t0 * src.height, src.width, (t1 - t0) * src.height);
+        canvas.save();
+        canvas.translate(stripCenter.dx + partOffsetX(part), stripCenter.dy + partOffsetY(part));
+        canvas.rotate(stripRotation);
+        final destStrip = Rect.fromCenter(center: Offset.zero, width: destW * stripScale, height: (destH / strips) * stripScale * 1.06); // slight overlap so strip seams don't show a hairline gap
+        canvas.drawImageRect(sourceImage, cutout == null ? srcStrip : Rect.fromLTWH(src.left, src.top + t0 * src.height, src.width, (t1 - t0) * src.height), destStrip, paint);
+        canvas.restore();
       }
-      final indices = <int>[];
-      for (var r = 0; r < rows - 1; r++) {
-        final a = r * cols, b0 = a + 1, c0 = a + cols, d = c0 + 1;
-        indices.addAll([a, b0, c0, b0, d, c0]);
-      }
-      final shaderPaint = Paint()
-        ..shader = ui.ImageShader(image, ui.TileMode.clamp, ui.TileMode.clamp, Float64List.fromList([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]))
-        ..filterQuality = FilterQuality.medium;
-      canvas.drawVertices(ui.Vertices(ui.VertexMode.triangles, positions, textureCoordinates: uvs, indices: indices), BlendMode.srcOver, shaderPaint);
     }
 
-    if (p.hasAnyPartCrop) {
-      for (final part in p.parts) {
+    if (actor.parts.any((part) => part.crop != null)) {
+      for (final part in actor.parts) {
         if (!part.visible || part.crop == null) continue;
-        drawPiece(part.crop!, part.boneId, part.scale);
+        drawPiece(part.id, part.crop!, part.boneId, part.scale);
       }
     } else {
       // Fallback: no parts mapped yet ÔÇö show the whole upload as a single
@@ -288,7 +355,7 @@ class _CharacterPainter extends CustomPainter {
       // crop from a portrait ended up with a floating head and no limbs at
       // all instead of a posable body wearing their face.
       final imagedBoneIds = (actor.id == p.selectedActorId && actor.useImageAsBody && actor.importedImagePath.isNotEmpty)
-          ? {for (final part in p.parts) if (part.crop != null) part.boneId}
+          ? {for (final part in actor.parts) if (part.crop != null) part.boneId}
           : const <String>{};
       canvas.save();
       canvas.translate(actor.offsetX, actor.offsetY);
@@ -329,9 +396,13 @@ class _CharacterPainter extends CustomPainter {
     final root = bones['root']!;
     final torso = point(bones['torso']!);
     final head = point(bones['head']!);
+    final hasImportedPuppet = actor.useImageAsBody && actor.importedImagePath.isNotEmpty;
     final headImaged = imagedBoneIds.contains('head');
     final torsoImaged = imagedBoneIds.contains('torso');
-    if (!headImaged || !torsoImaged) {
+    // Imported artwork is the character. Never draw the procedural demo body
+    // underneath it: otherwise rigging an uploaded/drawn character only
+    // appears to animate the code-generated character.
+    if (!hasImportedPuppet && (!headImaged || !torsoImaged)) {
       // Signature move: the body squashes/stretches automatically around an
       // Impact FX on this actor — classic squash & stretch, but nobody has
       // to hand-key it. Anticipation stretch just before, hard squash at the
@@ -958,4 +1029,38 @@ Offset _shakeOffset(ProjectState p) {  const window = 0.4;
     return (sx: 1 + .22 * decay - wobble * .05, sy: 1 - .28 * decay + wobble * .05);
   }
   return (sx: 1.0, sy: 1.0);
+}
+
+/// Renders the hand-drawn exposure sheet in the main viewport, driven by
+/// the same playhead as rig playback (see ProjectState.frameAnimationIndexAtPlayhead)
+/// — hitting Play actually flips through your drawings instead of the
+/// frame-by-frame editor being a dead end disconnected from the rest of
+/// the app. No onion skin here: only the current exposure is shown, since
+/// onion skin is a drawing aid, not something you want during playback.
+class _FrameAnimationPainter extends CustomPainter {
+  _FrameAnimationPainter(this.project);
+  final ProjectState project;
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF11131A));
+    final track = project.frameAnimation;
+    final frame = track.visibleFrame(project.frameAnimationIndexAtPlayhead);
+    if (frame == null) return;
+    canvas.saveLayer(Offset.zero & size, Paint());
+    for (final s in frame.strokes) {
+      if (s.points.isEmpty) continue;
+      final paint = Paint()
+        ..color = Color(s.argb)
+        ..strokeWidth = s.width
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke
+        ..blendMode = s.erase ? BlendMode.clear : BlendMode.srcOver;
+      Offset px(DrawingPoint p) => Offset(p.x * size.width, p.y * size.height);
+      for (var j = 1; j < s.points.length; j++) canvas.drawLine(px(s.points[j - 1]), px(s.points[j]), paint);
+      if (s.points.length == 1) canvas.drawCircle(px(s.points.first), s.width / 2, paint..style = PaintingStyle.fill);
+    }
+    canvas.restore();
+  }
+  @override
+  bool shouldRepaint(covariant _FrameAnimationPainter old) => true;
 }

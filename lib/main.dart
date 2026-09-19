@@ -1,10 +1,14 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'models/rig.dart';
+import 'models/shinra2d_asset.dart';
 import 'package:flutter/services.dart' show rootBundle, Clipboard, ClipboardData;
 import 'package:path_provider/path_provider.dart';
 import 'services/ai_director.dart';
@@ -14,8 +18,10 @@ import 'services/audio_cue_service.dart';
 import 'services/gif_export.dart';
 import 'services/project_store.dart';
 import 'services/video_export.dart';
+import 'services/shinra2d_asset_service.dart';
 import 'widgets/draw_canvas.dart';
 import 'widgets/viewport.dart';
+import 'widgets/frame_by_frame_editor.dart';
 
 /// SHINRA CORE design tokens. A studio console for choreographing anime-style
 /// motion, not a dress-up toy — so the palette stays disciplined dark neutrals
@@ -89,7 +95,7 @@ class ShinraApp extends StatelessWidget {
   }
 }
 
-enum AppPage { home, studio, scene, character, library, rig, animate, face, fx, camera, audio, ai, export }
+enum AppPage { home, studio, scene, character, library, rig, animate, frameByFrame, face, fx, camera, audio, ai, export }
 
 class Shell extends StatefulWidget { const Shell({super.key}); @override State<Shell> createState() => _ShellState(); }
 class _ShellState extends State<Shell> {
@@ -148,6 +154,7 @@ class _ShellState extends State<Shell> {
           (Icons.video_library_outlined, 'Bibliothèque'),
           (Icons.account_tree_outlined, 'Squelette'),
           (Icons.timeline_outlined, 'Animation'),
+          (Icons.draw_outlined, 'Frame by Frame'),
           (Icons.face_outlined, 'Visage'),
           (Icons.auto_awesome_outlined, 'FX'),
           (Icons.videocam_outlined, 'Caméra'),
@@ -194,7 +201,7 @@ class _ShellState extends State<Shell> {
           ]));
         });
       });
-  Widget _page(ProjectState p) { switch (page) { case AppPage.home: return HomePage(onOpen: (x) => setState(() => page = x)); case AppPage.studio: return StudioPage(p: p, onPlay: () => togglePlay(p)); case AppPage.scene: return ScenePage(p: p, onPlay: () => togglePlay(p)); case AppPage.character: return CharacterPage(p: p); case AppPage.library: return LibraryPage(p: p, onUse: () => setState(() => page = AppPage.animate)); case AppPage.rig: return RigPage(p: p); case AppPage.animate: return AnimatePage(p: p, onPlay: () => togglePlay(p)); case AppPage.face: return FacePage(p: p); case AppPage.fx: return FxPage(p: p); case AppPage.camera: return CameraPage(p: p); case AppPage.audio: return AudioPage(p: p); case AppPage.ai: return AiPage(p: p, onPlaySequence: (ids) => playQueue(p, ids)); case AppPage.export: return ExportPage(p: p); } }
+  Widget _page(ProjectState p) { switch (page) { case AppPage.home: return HomePage(onOpen: (x) => setState(() => page = x)); case AppPage.studio: return StudioPage(p: p, onPlay: () => togglePlay(p)); case AppPage.scene: return ScenePage(p: p, onPlay: () => togglePlay(p)); case AppPage.character: return CharacterPage(p: p); case AppPage.library: return LibraryPage(p: p, onUse: () => setState(() => page = AppPage.animate)); case AppPage.rig: return RigPage(p: p); case AppPage.animate: return AnimatePage(p: p, onPlay: () => togglePlay(p)); case AppPage.frameByFrame: return FrameByFramePage(project: p); case AppPage.face: return FacePage(p: p); case AppPage.fx: return FxPage(p: p); case AppPage.camera: return CameraPage(p: p); case AppPage.audio: return AudioPage(p: p); case AppPage.ai: return AiPage(p: p, onPlaySequence: (ids) => playQueue(p, ids)); case AppPage.export: return ExportPage(p: p); } }
 }
 
 /// A viewport/canvas next to a fixed-width control panel — side by side on
@@ -273,7 +280,7 @@ class CardBox extends StatelessWidget {
       );
 }
 
-class HomePage extends StatelessWidget { const HomePage({super.key, required this.onOpen}); final void Function(AppPage) onOpen; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'SHINRA CORE', subtitle: 'Atelier d\'animation anime 2D'), Expanded(child: GridView.count(crossAxisCount: 3, padding: const EdgeInsets.all(24), crossAxisSpacing: 16, mainAxisSpacing: 16, children: [for (final x in [(AppPage.studio, Icons.movie, 'Studio', 'Composer une scène'), (AppPage.scene, Icons.groups, 'Scène', '3 à 6 personnages, ville, combat'), (AppPage.character, Icons.person, 'Personnage', 'Créer les parties, importer un dessin'), (AppPage.rig, Icons.account_tree, 'Squelette', 'Os et liaisons'), (AppPage.animate, Icons.timeline, 'Animation', 'Images-clés et lecture'), (AppPage.face, Icons.face, 'Expressions', 'Jeu d\'acteur du visage'), (AppPage.fx, Icons.auto_awesome, 'FX', 'Impacts et particules'), (AppPage.camera, Icons.videocam, 'Caméra', 'Plans et cadrage'), (AppPage.ai, Icons.smart_toy, 'IA Réalisateur', 'Transforme une consigne en timeline')]) CardBox(child: InkWell(onTap: () => onOpen(x.$1), borderRadius: BorderRadius.circular(18), child: Padding(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(x.$2, size: 36, color: const Color(0xFFE23349)), const Spacer(), Text(x.$3, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text(x.$4, style: TextStyle(color: Colors.white.withValues(alpha: .55))) ]))))]) )]); }
+class HomePage extends StatelessWidget { const HomePage({super.key, required this.onOpen}); final void Function(AppPage) onOpen; @override Widget build(BuildContext c) => Column(children: [const Top(title: 'SHINRA CORE', subtitle: 'Atelier d\'animation anime 2D'), Expanded(child: GridView.count(crossAxisCount: 3, padding: const EdgeInsets.all(24), crossAxisSpacing: 16, mainAxisSpacing: 16, children: [for (final x in [(AppPage.studio, Icons.movie, 'Studio', 'Composer une scène'), (AppPage.scene, Icons.groups, 'Scène', '3 à 6 personnages, ville, combat'), (AppPage.character, Icons.person, 'Personnage', 'Créer les parties, importer un dessin'), (AppPage.rig, Icons.account_tree, 'Squelette', 'Os et liaisons'), (AppPage.animate, Icons.timeline, 'Animation', 'Images-clés et lecture'), (AppPage.frameByFrame, Icons.draw, 'Frame by Frame', 'Dessin image par image + onion skin'), (AppPage.face, Icons.face, 'Expressions', 'Jeu d\'acteur du visage'), (AppPage.fx, Icons.auto_awesome, 'FX', 'Impacts et particules'), (AppPage.camera, Icons.videocam, 'Caméra', 'Plans et cadrage'), (AppPage.ai, Icons.smart_toy, 'IA Réalisateur', 'Transforme une consigne en timeline')]) CardBox(child: InkWell(onTap: () => onOpen(x.$1), borderRadius: BorderRadius.circular(18), child: Padding(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(x.$2, size: 36, color: const Color(0xFFE23349)), const Spacer(), Text(x.$3, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text(x.$4, style: TextStyle(color: Colors.white.withValues(alpha: .55))) ]))))]) )]); }
 
 class ScenePage extends StatefulWidget {
   const ScenePage({super.key, required this.p, required this.onPlay});
@@ -444,6 +451,7 @@ class _CharacterPageState extends State<CharacterPage> {
       final edited = transform(source);
       final path = await ie.ImageUploadService.saveImage(edited, 'edited');
       p.importedImagePath = path;
+      p.selectedActor.importedImagePath = path;
       p.status = 'Image edited';
       p.refresh();
     } catch (err) {
@@ -486,7 +494,11 @@ class _CharacterPageState extends State<CharacterPage> {
     final file = File('${dir.path}/shinra_starter_${chosen}_${DateTime.now().millisecondsSinceEpoch}.png');
     await file.writeAsBytes(bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes));
     p.importedImagePath = file.path;
-    p.status = 'Starter character "$chosen" loaded (Kenney, CC0)';
+    p.useImageAsBody = true;
+    p.selectedActor.importedImagePath = file.path;
+    p.selectedActor.useImageAsBody = true;
+    await p.autoMapImageParts();
+    p.status = 'Starter character "$chosen" loaded (Kenney, CC0) — Auto-Rig 2D prêt';
     p.refresh();
   }
 
@@ -528,7 +540,7 @@ class _CharacterPageState extends State<CharacterPage> {
                     child: OutlinedButton.icon(
                       onPressed: () async {
                         final path = await Navigator.push<String>(c, MaterialPageRoute(builder: (_) => const DrawCanvasPage()));
-                        if (path != null) { p.importedImagePath = path; p.useImageAsBody = true; p.status = 'Drawing ready'; p.refresh(); }
+                        if (path != null) { p.importedImagePath = path; p.useImageAsBody = true; p.selectedActor.importedImagePath = path; p.selectedActor.useImageAsBody = true; await p.autoMapImageParts(); p.status = 'Drawing ready — Auto-Rig 2D prêt'; p.refresh(); }
                       },
                       icon: const Icon(Icons.brush),
                       label: const Text('Dessiner'),
@@ -539,10 +551,56 @@ class _CharacterPageState extends State<CharacterPage> {
                     child: FilledButton.icon(
                       onPressed: () async {
                         final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 95);
-                        if (x != null) { p.importedImagePath = x.path; p.status = 'Imported ${x.name}'; p.refresh(); }
+                        if (x != null) { p.importedImagePath = x.path; p.useImageAsBody = true; p.selectedActor.importedImagePath = x.path; p.selectedActor.useImageAsBody = true; await p.autoMapImageParts(); p.status = 'Imported ${x.name} — Auto-Rig 2D prêt'; p.refresh(); }
                       },
                       icon: const Icon(Icons.image),
                       label: const Text('Importer'),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final file = await FilePicker.pickFile(
+                          type: FileType.custom,
+                          allowedExtensions: ['shn2d'],
+                        );
+                        if (file == null) return;
+                        try {
+                          final text = utf8.decode(await file.readAsBytes());
+                          final asset = Shinra2DPuppetAsset.decode(text);
+                          await Shinra2DAssetService.applyToProject(p, asset);
+                        } catch (e) {
+                          p.status = 'Shinra 2D Puppet invalide: $e';
+                          p.refresh();
+                        }
+                      },
+                      icon: const Icon(Icons.file_open),
+                      label: const Text('Ouvrir .SHN2D'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        if (!p.useImageAsBody || p.importedImagePath.isEmpty) {
+                          p.status = 'Auto-Rig un personnage avant export .SHN2D';
+                          p.refresh();
+                          return;
+                        }
+                        final asset = await Shinra2DAssetService.fromProject(p);
+                        final uri = await FilePicker.saveFile(
+                          dialogTitle: 'Exporter le personnage 2D Shinra',
+                          fileName: 'shinra_character.shn2d',
+                          bytes: Uint8List.fromList(utf8.encode(asset.encode())),
+                        );
+                        p.status = uri == null ? 'Export annulé' : 'Personnage .SHN2D exporté';
+                        p.refresh();
+                      },
+                      icon: const Icon(Icons.save_alt),
+                      label: const Text('Exporter .SHN2D'),
                     ),
                   ),
                 ]),
@@ -630,7 +688,7 @@ class _CharacterPageState extends State<CharacterPage> {
                       if (mounted) setState(() => autoMapping = false);
                     },
                     icon: autoMapping ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_fix_high),
-                    label: Text(autoMapping ? 'Analyzing image edges…' : 'Auto-guess regions (edge-assisted — still nudge them)'),
+                    label: Text(autoMapping ? 'Auto-Rig en cours…' : 'AUTO-RIG : rendre l’image articulable'),
                   ),
                   const SizedBox(height: 8),
                   for (final part in p.parts)
@@ -780,6 +838,8 @@ class AnimatePage extends StatelessWidget {
               OutlinedButton(onPressed: p.captureAll, child: const Text('Capturer la pose complète')),
               const SizedBox(width: 8),
               OutlinedButton(onPressed: p.resetPose, child: const Text('Réinitialiser')),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(onPressed: () => Navigator.of(c).push(MaterialPageRoute(builder: (_) => FrameByFramePage(project: p))), icon: const Icon(Icons.draw_outlined), label: const Text('Frame by Frame')),
             ]),
             const SizedBox(height: 8),
             _KeyframeTimeline(p: p, boneId: p.selectedBoneId),

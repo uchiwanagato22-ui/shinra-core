@@ -36,7 +36,7 @@ class ProjectStore {
       'accBelt': p.accBelt,
       'selectedAnimationId': p.selectedAnimationId,
       'camera': [p.camera.x, p.camera.y, p.camera.zoom, p.camera.rotation],
-      'parts': [for (final x in p.parts) {'id': x.id, 'bone': x.boneId, 'visible': x.visible, 'crop': x.crop == null ? null : [x.crop!.left, x.crop!.top, x.crop!.width, x.crop!.height]}],
+      'parts': [for (final x in p.parts) {'id': x.id, 'bone': x.boneId, 'visible': x.visible, 'crop': x.crop == null ? null : [x.crop!.left, x.crop!.top, x.crop!.width, x.crop!.height], 'imagePath': x.imagePath, 'ox': x.imageOffsetX, 'oy': x.imageOffsetY}],
       'bones': [for (final b in p.bones) {'id': b.id, 'x': b.x, 'y': b.y, 'r': b.rotation, 's': b.scale}],
       'ikTargets': [for (final t in p.ikTargets) {'id': t.id, 'end': t.endBoneId, 'x': t.x, 'y': t.y, 'enabled': t.enabled, 'weight': t.weight}],
       'animations': [
@@ -53,6 +53,9 @@ class ProjectStore {
       'fx': [for (final e in p.fx) {'id': e.id, 'name': e.name, 'time': e.time, 'clip': e.clipId}],
       'audio': [for (final e in p.audio) {'id': e.id, 'name': e.name, 'time': e.time, 'clip': e.clipId}],
       'dialogue': [for (final d in p.dialogue) {'id': d.id, 'actor': d.actorId, 'text': d.text, 'time': d.time, 'duration': d.duration, 'clip': d.clipId}],
+      'frameAnimation': p.frameAnimation.toJson(),
+      'frameEditorEnabled': p.frameEditorEnabled,
+      'frameCursor': p.frameCursor,
     };
     await prefs.setString(key, jsonEncode(data));
     p.status = 'Project saved';
@@ -113,6 +116,9 @@ class ProjectStore {
       part.visible = m['visible'] as bool;
       final crop = (m['crop'] as List?)?.cast<num>();
       part.crop = crop == null ? null : Rect.fromLTWH(crop[0].toDouble(), crop[1].toDouble(), crop[2].toDouble(), crop[3].toDouble());
+      part.imagePath = (m['imagePath'] as String?) ?? '';
+      part.imageOffsetX = ((m['ox'] as num?) ?? 0).toDouble();
+      part.imageOffsetY = ((m['oy'] as num?) ?? 0).toDouble();
     }
     for (final item in (d['animations'] as List? ?? const [])) {
       final m = Map<String, dynamic>.from(item);
@@ -138,6 +144,14 @@ class ProjectStore {
         }
         track.keys.sort((a, b) => a.time.compareTo(b.time));
       }
+    }
+    final frameRaw = d['frameAnimation'];
+    if (frameRaw is Map) {
+      final loaded = FrameAnimationTrack.fromJson(frameRaw);
+      p.frameAnimation.name = loaded.name; p.frameAnimation.fps = loaded.fps; p.frameAnimation.onionBefore = loaded.onionBefore; p.frameAnimation.onionAfter = loaded.onionAfter; p.frameAnimation.onionSkin = loaded.onionSkin; p.frameAnimation.loop = loaded.loop;
+      p.frameAnimation.frames..clear()..addAll(loaded.frames);
+      p.frameCursor = ((d['frameCursor'] as num?) ?? 0).toInt().clamp(0, p.frameAnimation.length == 0 ? 0 : p.frameAnimation.length - 1).toInt();
+      p.frameEditorEnabled = d['frameEditorEnabled'] as bool? ?? false;
     }
     p.fx..clear()..addAll([for (final item in (d['fx'] as List? ?? const [])) FxEvent(id: item['id'] as String, name: item['name'] as String, time: (item['time'] as num).toDouble(), clipId: item['clip'] as String)]);
     p.audio..clear()..addAll([for (final item in (d['audio'] as List? ?? const [])) AudioCue(id: item['id'] as String, name: item['name'] as String, time: (item['time'] as num).toDouble(), clipId: item['clip'] as String)]);
